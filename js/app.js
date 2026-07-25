@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 9;
+const APP_VERSION = 10;
 
 /** Beschikbare avatars; de eerste rij mensjes zijn de standaardtoewijzing. */
 const AVATARS = ['👨', '👩', '👦', '👧', '👴', '👵', '🐺', '🐱', '🐶', '🐰', '🦊', '🐻', '🦁', '🐸', '🦄', '🐷'];
@@ -162,6 +162,8 @@ function bindHoldReveal(holdEl, cardEl, onFirstReveal) {
   holdEl.addEventListener('pointercancel', hide);
   holdEl.addEventListener('pointerleave', hide);
   holdEl.addEventListener('contextmenu', e => e.preventDefault());
+  // Blokkeer het native long-press-gebaar (Android trilt anders bij vasthouden).
+  holdEl.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 }
 
 function playerButtons(players) {
@@ -1184,6 +1186,7 @@ function renderReview() {
   hold.addEventListener('pointercancel', stop);
   hold.addEventListener('pointerleave', stop);
   hold.addEventListener('contextmenu', e => e.preventDefault());
+  hold.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
   $('#back').addEventListener('click', () => { ui.reviewStage = null; ui.reviewId = null; render(); });
 }
 
