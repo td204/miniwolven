@@ -19,7 +19,18 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 11;
+const APP_VERSION = 12;
+
+/** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
+function soundOn() {
+  const prefs = Store.get(KEYS.prefs, {});
+  return prefs.sound === true;
+}
+function setSound(on) {
+  const prefs = Store.get(KEYS.prefs, {});
+  prefs.sound = on;
+  Store.set(KEYS.prefs, prefs);
+}
 
 /** Beschikbare avatars; de eerste rij mensjes zijn de standaardtoewijzing. */
 const AVATARS = ['👨', '👩', '👦', '👧', '👴', '👵', '🐺', '🐱', '🐶', '🐰', '🦊', '🐻', '🦁', '🐸', '🦄', '🐷'];
@@ -89,6 +100,7 @@ if ('speechSynthesis' in window) speechSynthesis.getVoices(); // vroeg laden
 
 let audioCtx = null;
 function beep(freq = 660, dur = 0.15) {
+  if (!soundOn()) return;
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     const o = audioCtx.createOscillator(), gain = audioCtx.createGain();
@@ -162,7 +174,7 @@ function synthHowl(ctx) {
 /** Speel het openingsgeluid één keer; browsers staan geluid soms pas na de
  *  eerste aanraking toe, dus we proberen het bij openen én bij de eerste tik. */
 function tryHowl() {
-  if (howlPlayed) return;
+  if (howlPlayed || !soundOn()) return;
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     audioCtx.resume().then(() => {
@@ -270,6 +282,7 @@ function bindMenu() {
 let game = Store.get(KEYS.game, null);
 let setup = null;   // tijdelijke setup-status (namen, rollen, opties)
 let ui = {};        // vluchtige schermstatus (niet opgeslagen)
+let currentView = 'home'; // voor de terugknop: waar zijn we, en waar kan 'terug' heen?
 
 /* =========================================================================
  * SCHERMEN
@@ -279,6 +292,7 @@ let ui = {};        // vluchtige schermstatus (niet opgeslagen)
 
 function renderHome() {
   ui = {};
+  currentView = 'home';
   const groups = Store.get(KEYS.groups, []);
   const hasGame = game && game.phase !== 'end';
   screen(`
@@ -300,6 +314,7 @@ function renderHome() {
         <button class="btn half" id="statsBtn">📊 Statistieken</button>
         <button class="btn half" id="rulesBtn">📖 Spelregels</button>
       </div>
+      <button class="btn" id="settingsBtn">⚙️ Instellingen</button>
     </div>
     <p class="footer-note">Tip: installeer Miniwolven via ‘Zet op beginscherm’ in je browser.<br>Miniwolven v${APP_VERSION}</p>
   `);
@@ -315,6 +330,52 @@ function renderHome() {
   }));
   $('#statsBtn').addEventListener('click', renderStats);
   $('#rulesBtn').addEventListener('click', () => renderRules(renderHome));
+  $('#settingsBtn').addEventListener('click', renderSettings);
+}
+
+/* ---------- instellingen ---------- */
+
+function renderSettings() {
+  currentView = 'settings';
+  const players = knownPlayers();
+  screen(`
+    ${header('Instellingen ⚙️')}
+    <div class="stack">
+      <label class="opt"><input type="checkbox" id="optSound" ${soundOn() ? 'checked' : ''}>
+        🔊 Geluidseffecten <small>· wolvengehuil bij het openen en piepjes bij het aftellen</small></label>
+      <p class="muted">De verteller-stem staat hier los van: die zet je per spel aan of uit bij de opties.</p>
+
+      <div class="section-label">Opgeslagen gegevens</div>
+      <button class="btn" id="wipeStats">🗑️ Statistieken op nul zetten
+        <small>scores worden 0, spelers en avatars blijven bestaan</small></button>
+      <button class="btn danger-btn" id="wipePlayers">🧹 Alle oude spelers wissen
+        <small>verwijdert alle bekende spelers, groepen en statistieken</small></button>
+      <div id="wipeDone" class="error" style="color:var(--ok)"></div>
+
+      <p class="muted center">Miniwolven v${APP_VERSION} · ${players.length} bekende ${players.length === 1 ? 'speler' : 'spelers'}</p>
+      <button class="btn primary" id="back">← Terug</button>
+    </div>
+  `);
+  $('#optSound').addEventListener('change', e => {
+    setSound(e.target.checked);
+    if (e.target.checked) { howlPlayed = false; tryHowl(); } // meteen even laten horen
+  });
+  $('#wipeStats').addEventListener('click', () => {
+    if (!confirm('Alle statistieken op nul zetten? Spelers en avatars blijven bestaan.')) return;
+    const stats = Store.get(KEYS.stats, {});
+    for (const s of Object.values(stats)) {
+      s.games = 0; s.wins = 0; s.wolfGames = 0; s.guessesRight = 0; s.guessesTotal = 0;
+    }
+    Store.set(KEYS.stats, stats);
+    $('#wipeDone').textContent = '✅ Statistieken staan weer op nul.';
+  });
+  $('#wipePlayers').addEventListener('click', () => {
+    if (!confirm('Alle bekende spelers, groepen en statistieken definitief wissen?')) return;
+    Store.del(KEYS.stats);
+    Store.del(KEYS.groups);
+    renderSettings();
+  });
+  $('#back').addEventListener('click', renderHome);
 }
 
 /* ---------- setup: spelers ---------- */
@@ -339,6 +400,7 @@ function startSetup(names) {
 }
 
 function renderSetupPlayers() {
+  currentView = 'players';
   const known = knownPlayers();
   const n = setup.names.length;
   screen(`
@@ -441,6 +503,7 @@ function showAvatarPicker(i) {
 /* ---------- setup: rollen & opties ---------- */
 
 function renderSetupRoles() {
+  currentView = 'roles';
   const n = setup.names.length;
   const auto = Engine.autoComposition(n);
   if (setup.wolves == null) setup.wolves = auto.wolves;
@@ -513,7 +576,7 @@ function renderSetupRoles() {
   $('#optDayTimer').addEventListener('change', e => s.dayTimerSec = Number(e.target.value));
   $('#deal').addEventListener('click', () => {
     if (setup.kleuters.some(Boolean)) s.hint = false;
-    Store.set(KEYS.prefs, { settings: s });
+    Store.set(KEYS.prefs, Object.assign(Store.get(KEYS.prefs, {}), { settings: s }));
     rememberGroup(setup.names);
     game = Engine.newGame({
       names: setup.names, avatars: setup.avatars, kleuters: setup.kleuters,
@@ -1267,6 +1330,7 @@ function renderReview() {
 /* ---------- statistieken & regels ---------- */
 
 function renderStats() {
+  currentView = 'stats';
   const stats = Object.values(Store.get(KEYS.stats, {}))
     .sort((a, b) => b.games - a.games);
   screen(`
@@ -1289,7 +1353,11 @@ function renderStats() {
   $('#back').addEventListener('click', renderHome);
 }
 
+let rulesBack = null; // waar 'terug' vanuit de spelregels heen moet
+
 function renderRules(backFn) {
+  currentView = 'rules';
+  rulesBack = backFn || renderHome;
   screen(`
     ${header('Spelregels 📖')}
     <div class="stack rules">
@@ -1313,6 +1381,7 @@ function renderRules(backFn) {
 
 function render() {
   if (!game) return renderHome();
+  currentView = 'game';
   if (ui.reviewStage) return renderReview();
   if (ui.shotResult) return renderShotResult();
   if (game.hunterPending != null && ui.hunterActive) return renderHunter();
@@ -1331,7 +1400,29 @@ function render() {
   }
 }
 
+/* ---------- terugknop (Android/browser) ---------- */
+// Eén 'buffer'-entry in de history vangt de terugknop op: waar het kan gaan we
+// echt terug in de app; op het startscherm of midden in een spel vragen we
+// eerst of de app dicht mag.
+function armBackTrap() { history.pushState({ mw: 1 }, ''); }
+
+window.addEventListener('popstate', () => {
+  if (currentView === 'roles') { armBackTrap(); renderSetupPlayers(); return; }
+  if (currentView === 'rules') { armBackTrap(); (rulesBack || renderHome)(); return; }
+  if (['players', 'stats', 'settings'].includes(currentView)) { armBackTrap(); renderHome(); return; }
+  // startscherm of lopend spel
+  if (confirm('Miniwolven afsluiten?')) {
+    history.back();                                  // in een browser-tab: terug naar de vorige site
+    setTimeout(() => window.close(), 250);           // in de geïnstalleerde app: proberen te sluiten
+    setTimeout(() => armBackTrap(), 500);            // lukt sluiten niet, dan blijven we netjes staan
+  } else {
+    armBackTrap();
+  }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
+  history.replaceState({ mw: 0 }, '');
+  armBackTrap();
   renderHome();
   tryHowl(); // ahoeoeee 🐺 (lukt dit nog niet van de browser, dan bij de eerste tik)
 });
