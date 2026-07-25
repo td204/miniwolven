@@ -41,7 +41,9 @@ npx serve .        # of: python3 -m http.server
 - statistieken per speler over alle spellen heen; spel hervatten na herladen.
 
 Zie [`SPEC.md`](SPEC.md) voor de volledige specificatie, de spelregels en het
-ontwerp van fase 2 (multiplayer via websockets).
+ontwerp van fase 2 (multiplayer via websockets). In [`docs/`](docs/) staat het
+volledige spelscenario, de UI-beschrijving, de ontwerpkeuzes en de lessons
+learned — bedoeld om een volgend (spel)project van dit project te laten leren.
 
 ## Ontwikkeling
 
