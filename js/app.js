@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 20;
+const APP_VERSION = 21;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -242,6 +242,16 @@ const Ambient = {
     this.gain = null; this.sources = []; this.scene = null;
   },
   every(ms, fn) { this.timers.push(setInterval(fn, ms)); },
+  /** Volume tijdelijk dempen (1 = normaal), bijv. als de telefoon wordt opgepakt. */
+  duckTo(level) {
+    if (!audioCtx || !this.gain) return;
+    const t = audioCtx.currentTime;
+    try {
+      this.gain.gain.cancelScheduledValues(t);
+      this.gain.gain.setValueAtTime(this.gain.gain.value, t);
+      this.gain.gain.linearRampToValueAtTime(Math.max(0.0001, level), t + 0.25);
+    } catch {}
+  },
   set(scene) {
     // Naar stilte (geheim moment): snel uitfaden, anders verraadt de speaker
     // nog bijna een seconde lang waar de telefoon is.
@@ -401,6 +411,66 @@ setInterval(() => {
     audioSleep();
   }
 }, 2000);
+
+/* ---------- bewegingssensor: ligt de telefoon of is hij in de hand? ----------
+ * Nooit leidend, alleen een extraatje. Drempels zijn bewust conservatief:
+ * we handelen alleen als we het vrij zeker weten, anders doen we niets. */
+
+const Motion = {
+  started: false, active: false, last: null, jitter: 0, flat: false,
+  listen() {
+    window.addEventListener('devicemotion', e => {
+      const a = e.accelerationIncludingGravity;
+      if (!a || a.x == null) return;
+      if (this.last) {
+        const d = Math.abs(a.x - this.last.x) + Math.abs(a.y - this.last.y) + Math.abs(a.z - this.last.z);
+        this.jitter = this.jitter * 0.9 + d * 0.1; // lopend gemiddelde
+      }
+      this.last = { x: a.x, y: a.y, z: a.z };
+      this.flat = Math.abs(Math.abs(a.z) - 9.8) < 1.6 && Math.abs(a.x) < 1.6 && Math.abs(a.y) < 1.6;
+      this.active = true;
+    }, { passive: true });
+  },
+  /** Vrij zeker: plat op tafel en muisstil. */
+  isDown() { return this.active && this.flat && this.jitter < 0.25; },
+  /** Vrij zeker: wordt vastgehouden of bewogen. */
+  isHeld() { return this.active && this.jitter > 1.4; },
+};
+function initMotion() {
+  if (Motion.started) return;
+  Motion.started = true;
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      // iOS vraagt expliciet toestemming; weigeren = feature gewoon uit
+      DeviceMotionEvent.requestPermission()
+        .then(state => { if (state === 'granted') Motion.listen(); })
+        .catch(() => {});
+    } else if ('DeviceMotionEvent' in window) {
+      Motion.listen();
+    }
+  } catch {}
+}
+window.addEventListener('pointerdown', initMotion, { once: true });
+
+// Waakhond: wordt de telefoon tijdens een nachtscène opgepakt terwijl er
+// geluid speelt? Dan dempen we, zodat de speaker de locatie niet verraadt.
+let motionDucked = false;
+setInterval(() => {
+  // Alleen in de rolscènes (ziener/wolf/heks): daar hoort de telefoon stil in
+  // het midden te liggen. Tijdens 'iedereen ogen dicht' en de ochtend wordt
+  // hij juist normaal vastgepakt en mag de stem niet worden afgekapt.
+  const inNight = game && currentView === 'game' && game.phase === 'night' && game.night
+    && ['ziener', 'wolf', 'heks'].includes(Engine.nightStep(game));
+  const shouldDuck = inNight && Motion.isHeld();
+  if (shouldDuck && !motionDucked) {
+    motionDucked = true;
+    Ambient.duckTo(0.1);
+    try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch {}
+  } else if (!shouldDuck && motionDucked) {
+    motionDucked = false;
+    Ambient.duckTo(1);
+  }
+}, 400);
 
 /** Welke sfeer past bij het scherm dat nu zichtbaar is? */
 function ambientScene() {
@@ -982,8 +1052,9 @@ function renderNightRest() {
   // Twee fasen: eerst ZWIJGEND 'leg de telefoon terug' (de speler heeft hem
   // nog vast — spraak zou verraden waar de telefoon is), en pas als hij
   // terug in het midden ligt spreekt de app de rol toe.
-  const SILENT_SECONDS = 4;
+  const SILENT_SECONDS = 5;
   const SPOKEN_SECONDS = 4;
+  let downStreak = 0; // aantal seconden dat de telefoon aantoonbaar terugligt
   screen(`
     <div class="center-stage night">
       <div class="big-emoji" id="restEmoji">📵</div>
@@ -996,6 +1067,12 @@ function renderNightRest() {
   let left = SILENT_SECONDS + SPOKEN_SECONDS;
   every(1000, () => {
     left--;
+    // Ligt de telefoon volgens de bewegingssensor al twee tellen zeker plat
+    // en stil? Dan hoeft de stille fase niet langer te duren.
+    if (left > SPOKEN_SECONDS + 1) {
+      downStreak = Motion.isDown() ? downStreak + 1 : 0;
+      if (downStreak >= 2) left = SPOKEN_SECONDS + 1;
+    }
     const el = $('#restCount');
     if (el) el.textContent = left;
     if (left === SPOKEN_SECONDS) {
