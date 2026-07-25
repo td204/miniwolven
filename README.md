@@ -10,9 +10,17 @@ werkt offline, alles wordt lokaal op het toestel bewaard.
 **Direct proberen:** open `index.html` in een browser (alles werkt, alleen
 offline-cache en installeren niet — daar is HTTPS voor nodig).
 
-**Echt hosten (aanbevolen):** zet de map op een statische host, bijvoorbeeld GitHub
-Pages (Settings → Pages → deploy from branch). Open de URL op je telefoon en kies
-*"Zet op beginscherm"* — Miniwolven gedraagt zich dan als een app.
+**Echt hosten (aanbevolen): GitHub Pages aanzetten** — eenmalig, twee klikken:
+
+1. Ga op GitHub naar deze repository → **Settings** → **Pages**;
+2. Onder *Build and deployment* kies je **Source: Deploy from a branch**, daaronder
+   de branch `claude/miniwolven-pwa-app-j0cbm4` (of `main` na een merge) met map
+   **/ (root)**, en klik **Save**.
+
+Na een minuut staat de app op **https://td204.github.io/miniwolven/** en wordt hij
+bij elke push automatisch opnieuw gepubliceerd. Open die URL op je telefoon en kies
+*"Zet op beginscherm"* (Android/Chrome) of *Deel → Zet op beginscherm* (iPhone) —
+Miniwolven gedraagt zich dan als een echte app, ook offline.
 
 **Lokaal ontwikkelen:**
 
