@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 22;
+const APP_VERSION = 23;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -168,33 +168,49 @@ function synthHowl(ctx) {
   noise.start(t0); noise.stop(t0 + 7.6);
   windLfo.start(t0); windLfo.stop(t0 + 7.6);
 
-  // Eén huil: ahoe-oe-oeee — toon glijdt omhoog, trilt even, zakt weg
+  // Eén huil: a-hoooo-oeee. Zaagtand door formant-filters geeft een kelig,
+  // dierlijk timbre (een kale toon met vibrato klinkt als een spookje).
   const howlOnce = (start, base, vol) => {
-    const osc = ctx.createOscillator(); osc.type = 'triangle';
-    const osc2 = ctx.createOscillator(); osc2.type = 'triangle'; osc2.detune.value = 6;
-    const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1400;
+    const osc = ctx.createOscillator(); osc.type = 'sawtooth';
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800; lp.Q.value = 0.5;
+    const f1 = ctx.createBiquadFilter(); f1.type = 'peaking'; f1.frequency.value = 850; f1.Q.value = 1.6; f1.gain.value = 10;
+    const f2 = ctx.createBiquadFilter(); f2.type = 'peaking'; f2.frequency.value = 1300; f2.Q.value = 2; f2.gain.value = 6;
     const g = ctx.createGain();
-    const vib = ctx.createOscillator(); vib.frequency.value = 5.2;
-    const vibGain = ctx.createGain(); vibGain.gain.value = base * 0.03;
-    vib.connect(vibGain); vibGain.connect(osc.frequency); vibGain.connect(osc2.frequency);
-    for (const o of [osc, osc2]) {
-      o.frequency.setValueAtTime(base * 0.55, start);
-      o.frequency.exponentialRampToValueAtTime(base, start + 0.85);      // a-hoe omhoog
-      o.frequency.setValueAtTime(base, start + 2.0);                     // oeee aanhouden
-      o.frequency.exponentialRampToValueAtTime(base * 0.68, start + 3.0); // wegzakken
-      o.connect(filt);
-    }
+    // toonverloop: kort omhoog, lang aanhouden terwijl hij langzaam zakt, wegsterven
+    osc.frequency.setValueAtTime(base * 0.55, start);
+    osc.frequency.exponentialRampToValueAtTime(base, start + 0.7);
+    osc.frequency.linearRampToValueAtTime(base * 0.93, start + 2.4);
+    osc.frequency.exponentialRampToValueAtTime(base * 0.5, start + 3.3);
+    // héél licht wankelen, pas tijdens het aanhouden (geen spook-vibrato)
+    const vib = ctx.createOscillator(); vib.frequency.value = 4.3;
+    const vibG = ctx.createGain();
+    vibG.gain.setValueAtTime(0, start);
+    vibG.gain.setValueAtTime(0, start + 0.9);
+    vibG.gain.linearRampToValueAtTime(base * 0.012, start + 1.3);
+    vib.connect(vibG).connect(osc.frequency);
     g.gain.setValueAtTime(0.0001, start);
-    g.gain.exponentialRampToValueAtTime(vol, start + 0.5);
-    g.gain.setValueAtTime(vol, start + 2.1);
-    g.gain.exponentialRampToValueAtTime(0.0001, start + 3.2);
-    filt.connect(g).connect(master);
-    osc.start(start); osc.stop(start + 3.3);
-    osc2.start(start); osc2.stop(start + 3.3);
-    vib.start(start); vib.stop(start + 3.3);
+    g.gain.exponentialRampToValueAtTime(vol, start + 0.45);
+    g.gain.setValueAtTime(vol, start + 2.3);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 3.4);
+    osc.connect(lp).connect(f1).connect(f2).connect(g).connect(master);
+    osc.start(start); osc.stop(start + 3.5);
+    vib.start(start); vib.stop(start + 3.5);
+    // vleugje adem voor een ruw randje
+    const bLen = Math.floor(ctx.sampleRate * 3.4);
+    const bBuf = ctx.createBuffer(1, bLen, ctx.sampleRate);
+    const bd = bBuf.getChannelData(0);
+    for (let i = 0; i < bLen; i++) bd[i] = Math.random() * 2 - 1;
+    const breath = ctx.createBufferSource(); breath.buffer = bBuf;
+    const bf = ctx.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 1100; bf.Q.value = 1.2;
+    const bg = ctx.createGain();
+    bg.gain.setValueAtTime(0.0001, start);
+    bg.gain.exponentialRampToValueAtTime(vol * 0.12, start + 0.5);
+    bg.gain.exponentialRampToValueAtTime(0.0001, start + 3.3);
+    breath.connect(bf).connect(bg).connect(master);
+    breath.start(start); breath.stop(start + 3.4);
   };
-  howlOnce(t0 + 0.8, 420, 0.12);   // de wolf dichtbij
-  howlOnce(t0 + 2.6, 330, 0.05);   // een tweede, verder weg
+  howlOnce(t0 + 0.8, 400, 0.09);   // de wolf dichtbij
+  howlOnce(t0 + 2.8, 310, 0.04);   // een tweede, verder weg
 }
 
 /** Speel het openingsgeluid één keer; browsers staan geluid soms pas na de
