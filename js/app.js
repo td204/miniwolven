@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 18;
+const APP_VERSION = 19;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -447,6 +447,9 @@ function clearTimers() { activeTimers.forEach(t => { clearTimeout(t); clearInter
 
 function screen(html, cls = '') {
   clearTimers();
+  // Lopende spraak direct afkappen: een herinnering die nét gestart is mag
+  // niet doorpraten nadat iemand de telefoon al heeft opgepakt.
+  try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch {}
   app().className = cls;
   app().innerHTML = html;
   window.scrollTo(0, 0);
@@ -986,7 +989,9 @@ function renderNightRest() {
       <button class="btn subtle" id="skip">verder ›</button>
     </div>
   `, 'theme-night');
-  speak(`${ui.restLabel}, doe je ogen dicht en leg de telefoon terug.`);
+  speak(ui.restLabel === 'Weerwolven'
+    ? 'Weerwolven, doe jullie ogen dicht en leg de telefoon terug.'
+    : `${ui.restLabel}, doe je ogen dicht en leg de telefoon terug.`);
   let left = REST_SECONDS;
   every(1000, () => {
     left--;
@@ -1092,12 +1097,19 @@ function renderNightWolf() {
       </div>
     `, 'theme-night');
     bindMenu();
-    const wolfWord = multi ? 'Weerwolven' : 'Weerwolf';
-    speakNagging(`${wolfWord}, word wakker.`, [
-      `${wolfWord}! Hallo ${wolfWord.toLowerCase()}! Word wakker.`,
-      `${wolfWord}, word wakker!`,
-      `Hé ${wolfWord.toLowerCase()}! Opstaan, het is jachttijd.`,
-    ]);
+    if (multi) {
+      speakNagging('Weerwolven, word wakker.', [
+        'Weerwolven! Hallo weerwolven! Zijn jullie al wakker?',
+        'Weerwolven, worden jullie eens wakker!',
+        'Hé weerwolven! Opstaan, jullie moeten op jacht.',
+      ]);
+    } else {
+      speakNagging('Weerwolf, word wakker.', [
+        'Weerwolf! Hallo weerwolf! Word wakker.',
+        'Weerwolf, word wakker!',
+        'Hé weerwolf! Opstaan, het is jachttijd.',
+      ]);
+    }
     $('#me').addEventListener('click', () => {
       ui.stepStage = game.settings.deathMode === 'app' ? 'pick' : 'fysiek';
       render();
@@ -1121,9 +1133,9 @@ function renderNightWolf() {
   if (ui.stepStage === 'pick') {
     const options = Engine.alive(game).filter(p => p.role !== 'wolf');
     screen(`
-      ${header('Weerwolf', true)}
+      ${header(multi ? 'Weerwolven' : 'Weerwolf', true)}
       <div class="stack night">
-        <h2>🎯 Wie val je vannacht aan?</h2>
+        <h2>🎯 ${multi ? 'Wie vallen jullie vannacht aan?' : 'Wie val je vannacht aan?'}</h2>
         ${playerButtons(options)}
       </div>
     `, 'theme-night');
@@ -1133,10 +1145,10 @@ function renderNightWolf() {
   }
   const t = Engine.player(game, ui.wolfPick);
   screen(`
-    ${header('Weerwolf', true)}
+    ${header(multi ? 'Weerwolven' : 'Weerwolf', true)}
     <div class="center-stage night">
       <div class="big-emoji">🎯 ${av(t)}</div>
-      <h2>Vannacht pak je<br><span class="danger">${av(t)} ${esc(t.name)}</span></h2>
+      <h2>${multi ? 'Vannacht pakken jullie' : 'Vannacht pak je'}<br><span class="danger">${av(t)} ${esc(t.name)}</span></h2>
       <div class="row">
         <button class="btn half" id="backBtn">↩︎ Toch iemand anders</button>
         <button class="btn primary half" id="ok">Zeker weten 🐺</button>
