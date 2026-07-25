@@ -193,6 +193,11 @@ h2 { font-size: 1.35rem; }
 .timer-chip.over { background: var(--danger); color: #2b0606; }
 .timer-big { text-align: center; font-size: 2.4rem; font-weight: 800; min-height: 1.2em; letter-spacing: .05em; }
 
+.rest-count {
+  font-size: 3rem; font-weight: 800; color: var(--muted); opacity: .5;
+  min-height: 1.2em;
+}
+
 .countdown { justify-content: center; }
 .count-num {
   font-size: 9rem; font-weight: 900; color: var(--accent);

@@ -447,6 +447,7 @@ function startNightTimerChip() {
 }
 
 function renderNight() {
+  if (ui.stepStage === 'rest') return renderNightRest();
   const step = Engine.nightStep(game);
   if (step === 'sleep') return renderNightSleep();
   if (step === 'ziener') return renderNightZiener();
@@ -458,6 +459,39 @@ function renderNight() {
 function nightNext() {
   Engine.nextNightStep(game); saveGame();
   ui.stepStage = null; render();
+}
+
+/**
+ * Stille overgang: de rol die net klaar is legt de telefoon terug en doet de
+ * ogen dicht; de app wacht een paar tellen in stilte voordat de volgende rol
+ * wordt aangekondigd — anders verraadt de aankondiging wie er net bezig was.
+ */
+function startRest(label) {
+  ui.stepStage = 'rest';
+  ui.restLabel = label;
+  render();
+}
+
+function renderNightRest() {
+  const REST_SECONDS = 7;
+  screen(`
+    <div class="center-stage night">
+      <div class="big-emoji">😴</div>
+      <h2>${esc(ui.restLabel)}, ogen dicht</h2>
+      <p class="muted">Leg de telefoon terug in het midden.<br>Ssst… even helemaal stil.</p>
+      <div class="rest-count" id="restCount">${REST_SECONDS}</div>
+      <button class="btn subtle" id="skip">verder ›</button>
+    </div>
+  `, 'theme-night');
+  speak(`${ui.restLabel}, doe je ogen dicht en leg de telefoon terug.`);
+  let left = REST_SECONDS;
+  every(1000, () => {
+    left--;
+    const el = $('#restCount');
+    if (el) el.textContent = left;
+    if (left <= 0) nightNext();
+  });
+  $('#skip').addEventListener('click', nightNext);
 }
 
 function renderNightSleep() {
@@ -523,7 +557,7 @@ function renderNightZiener() {
     </div>
   `, 'theme-night');
   bindMenu();
-  $('#done').addEventListener('click', nightNext);
+  $('#done').addEventListener('click', () => startRest('Ziener'));
 }
 
 function renderNightWolf() {
@@ -561,7 +595,7 @@ function renderNightWolf() {
       </div>
     `, 'theme-night');
     bindMenu();
-    $('#done').addEventListener('click', nightNext);
+    $('#done').addEventListener('click', () => startRest(wolves.length > 1 ? 'Weerwolven' : 'Weerwolf'));
     return;
   }
   if (ui.stepStage === 'pick') {
@@ -592,7 +626,8 @@ function renderNightWolf() {
   bindMenu();
   $('#backBtn').addEventListener('click', () => { ui.stepStage = 'pick'; render(); });
   $('#ok').addEventListener('click', () => {
-    Engine.wolfPick(game, ui.wolfPick); saveGame(); nightNext();
+    Engine.wolfPick(game, ui.wolfPick); saveGame();
+    startRest(wolves.length > 1 ? 'Weerwolven' : 'Weerwolf');
   });
 }
 
@@ -659,7 +694,7 @@ function renderNightHeks() {
   if (healBtn) healBtn.addEventListener('click', () => { Engine.witchHeal(game); saveGame(); render(); });
   const poisonBtn = $('#poison');
   if (poisonBtn) poisonBtn.addEventListener('click', () => { ui.stepStage = 'poison'; render(); });
-  $('#done').addEventListener('click', nightNext);
+  $('#done').addEventListener('click', () => startRest('Heks'));
 }
 
 function renderNightWake() {
