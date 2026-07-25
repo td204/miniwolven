@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 13;
+const APP_VERSION = 14;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -109,6 +109,32 @@ function beep(freq = 660, dur = 0.15) {
     gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
     o.connect(gain).connect(audioCtx.destination);
     o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch {}
+}
+
+/** Paukenslag (boem!) voor de grote onthulling. */
+function drumBoom(vol = 0.5) {
+  if (!soundOn()) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    o.frequency.setValueAtTime(95, t);
+    o.frequency.exponentialRampToValueAtTime(50, t + 0.5);
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t); o.stop(t + 0.8);
+    const buf = audioCtx.createBuffer(1, Math.floor(audioCtx.sampleRate * 0.06), audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const n = audioCtx.createBufferSource(); n.buffer = buf;
+    const nf = audioCtx.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 300;
+    const ng = audioCtx.createGain(); ng.gain.value = vol * 0.5;
+    n.connect(nf).connect(ng).connect(audioCtx.destination);
+    n.start(t);
   } catch {}
 }
 
@@ -1359,18 +1385,31 @@ function renderEnd() {
       </div>
     `, 'theme-night');
     speak('Het spel is voorbij. Wie was al die tijd de weerwolf?');
-    $('#reveal').addEventListener('click', () => { ui.endStage = 'count'; ui.count = 5; render(); });
+    $('#reveal').addEventListener('click', () => { ui.endStage = 'drum'; render(); });
     return;
   }
-  if (ui.endStage === 'count') {
-    screen(`<div class="center-stage countdown"><div class="count-num">${ui.count}</div></div>`, 'theme-night');
-    speak(String(ui.count));
-    beep(520 + ui.count * 40, 0.12);
-    after(1000, () => {
-      ui.count--;
-      if (ui.count > 0) render();
-      else { ui.endStage = 'reveal'; render(); }
+  if (ui.endStage === 'drum') {
+    // Masked Singer-momentje: "Het is… het is…" — drie paukenslagen — de naam!
+    screen(`
+      <div class="center-stage countdown">
+        <div class="big-emoji drum" id="drum">🥁</div>
+        <h2 class="reveal-line" id="line">Het is…</h2>
+      </div>
+    `, 'theme-night');
+    speak('Het issss…');
+    const boom = hard => {
+      drumBoom(hard ? 0.7 : 0.5);
+      const d = $('#drum');
+      if (d) { d.classList.remove('hit'); void d.offsetWidth; d.classList.add('hit'); }
+    };
+    after(1500, () => {
+      const l = $('#line'); if (l) l.textContent = 'Het is… het is…';
+      speak('het issss…');
     });
+    after(3000, () => boom(false));
+    after(3800, () => boom(false));
+    after(4600, () => boom(true));
+    after(5700, () => { ui.endStage = 'reveal'; render(); });
     return;
   }
 
