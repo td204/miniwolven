@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 12;
+const APP_VERSION = 13;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -186,6 +186,175 @@ function tryHowl() {
 }
 window.addEventListener('pointerdown', tryHowl);
 
+/* ---------- sfeergeluid per scène (zacht, gesynthetiseerd) ---------- */
+
+const Ambient = {
+  scene: null, gain: null, sources: [], timers: [],
+  ensure() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      return audioCtx;
+    } catch { return null; }
+  },
+  stop() {
+    this.timers.forEach(t => clearInterval(t));
+    this.timers = [];
+    if (this.gain && audioCtx) {
+      const g = this.gain, srcs = this.sources, t = audioCtx.currentTime;
+      try {
+        g.gain.cancelScheduledValues(t);
+        g.gain.setValueAtTime(g.gain.value, t);
+        g.gain.linearRampToValueAtTime(0.0001, t + 0.8);
+      } catch {}
+      setTimeout(() => {
+        srcs.forEach(s => { try { s.stop(); } catch {} });
+        try { g.disconnect(); } catch {}
+      }, 900);
+    }
+    this.gain = null; this.sources = []; this.scene = null;
+  },
+  every(ms, fn) { this.timers.push(setInterval(fn, ms)); },
+  set(scene) {
+    if (!soundOn() || !scene) { if (this.scene) this.stop(); return; }
+    if (scene === this.scene) return;
+    this.stop();
+    const ctx = this.ensure();
+    if (!ctx) return;
+    this.scene = scene;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(1, ctx.currentTime + 1.5);
+    g.connect(ctx.destination);
+    this.gain = g;
+    (AMBIENT_SCENES[scene] || (() => {}))(ctx, g, this);
+  },
+};
+
+/* bouwstenen */
+function ambWind(ctx, out, amb, cut = 300, vol = 0.02) {
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.7;
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.18;
+  const lfoG = ctx.createGain(); lfoG.gain.value = cut * 0.5;
+  lfo.connect(lfoG).connect(f.frequency);
+  const g = ctx.createGain(); g.gain.value = vol;
+  src.connect(f).connect(g).connect(out);
+  src.start(); lfo.start();
+  amb.sources.push(src, lfo);
+}
+function ambDrone(ctx, out, amb, freq = 55, vol = 0.025) {
+  const g = ctx.createGain(); g.gain.value = vol;
+  const trem = ctx.createOscillator(); trem.frequency.value = 0.4;
+  const tremG = ctx.createGain(); tremG.gain.value = vol * 0.4;
+  trem.connect(tremG).connect(g.gain);
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
+  for (const det of [0, 4]) {
+    const o = ctx.createOscillator(); o.type = 'triangle';
+    o.frequency.value = freq; o.detune.value = det;
+    o.connect(f); o.start(); amb.sources.push(o);
+  }
+  f.connect(g).connect(out);
+  trem.start(); amb.sources.push(trem);
+}
+function ambCrickets(ctx, out, amb) {
+  const chirp = () => {
+    if (Math.random() < 0.35) return;
+    const base = 4100 + Math.random() * 500, t0 = ctx.currentTime;
+    const o = ctx.createOscillator(); o.frequency.value = base;
+    const g = ctx.createGain(); g.gain.value = 0.0001;
+    for (let i = 0; i < 3; i++) {
+      const t = t0 + i * 0.07;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.012, t + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    }
+    o.connect(g).connect(out); o.start(t0); o.stop(t0 + 0.3);
+  };
+  amb.every(700, chirp);
+}
+function ambBirds(ctx, out, amb, kans = 0.4) {
+  const tweet = () => {
+    if (Math.random() > kans) return;
+    let t = ctx.currentTime;
+    const notes = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < notes; i++) {
+      const f0 = 2100 + Math.random() * 900;
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.exponentialRampToValueAtTime(f0 * (1.2 + Math.random() * 0.3), t + 0.08);
+      o.frequency.exponentialRampToValueAtTime(f0, t + 0.15);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.015, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      o.connect(g).connect(out); o.start(t); o.stop(t + 0.2);
+      t += 0.18 + Math.random() * 0.12;
+    }
+  };
+  amb.every(1600, tweet);
+}
+function ambHeartbeat(ctx, out, amb) {
+  const thump = (t, vol) => {
+    const o = ctx.createOscillator(); o.frequency.setValueAtTime(52, t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+    o.connect(g).connect(out); o.start(t); o.stop(t + 0.3);
+  };
+  amb.every(1100, () => { const t = ctx.currentTime; thump(t, 0.05); thump(t + 0.22, 0.03); });
+}
+function ambPad(ctx, out, amb) {
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 480;
+  const g = ctx.createGain(); g.gain.value = 0.016;
+  const trem = ctx.createOscillator(); trem.frequency.value = 0.13;
+  const tremG = ctx.createGain(); tremG.gain.value = 0.008;
+  trem.connect(tremG).connect(g.gain);
+  for (const fr of [110, 164.8]) {
+    const o = ctx.createOscillator(); o.frequency.value = fr;
+    o.connect(f); o.start(); amb.sources.push(o);
+  }
+  f.connect(g).connect(out);
+  trem.start(); amb.sources.push(trem);
+}
+
+const AMBIENT_SCENES = {
+  deal:  (ctx, g, amb) => { ambWind(ctx, g, amb, 250, 0.015); ambPad(ctx, g, amb); },
+  night: (ctx, g, amb) => { ambWind(ctx, g, amb, 280, 0.02); ambCrickets(ctx, g, amb); },
+  tense: (ctx, g, amb) => { ambWind(ctx, g, amb, 200, 0.012); ambDrone(ctx, g, amb); ambHeartbeat(ctx, g, amb); },
+  dawn:  (ctx, g, amb) => { ambWind(ctx, g, amb, 400, 0.014); ambBirds(ctx, g, amb, 0.55); },
+  day:   (ctx, g, amb) => { ambWind(ctx, g, amb, 500, 0.018); ambBirds(ctx, g, amb, 0.3); },
+};
+
+/** Welke sfeer past bij het scherm dat nu zichtbaar is? */
+function ambientScene() {
+  if (!game || currentView !== 'game') return null;
+  if (ui.shotResult || (game.hunterPending != null && ui.hunterActive)) return 'tense';
+  if (game.phase === 'deal' || game.phase === 'dealDone') return 'deal';
+  if (game.phase === 'night') {
+    const step = Engine.nightStep(game);
+    if (step === 'wake') return ui.stepStage === 'count' ? 'tense' : 'dawn';
+    if (step === 'wolf' && ui.stepStage !== 'rest') return 'tense';
+    return 'night';
+  }
+  if (game.phase === 'day') return 'day';
+  if (game.phase === 'end') return ui.endStage === 'reveal' ? 'dawn' : 'tense';
+  return null;
+}
+
+// Snel muten kan altijd: 🔊/🔇 staat op elk spelscherm bovenin.
+document.addEventListener('click', e => {
+  const b = e.target && e.target.closest ? e.target.closest('#soundBtn') : null;
+  if (!b) return;
+  setSound(!soundOn());
+  b.textContent = soundOn() ? '🔊' : '🔇';
+  Ambient.set(soundOn() ? ambientScene() : null);
+});
+
 /* ---------- hulpjes ---------- */
 
 const app = () => document.getElementById('app');
@@ -203,6 +372,7 @@ function screen(html, cls = '') {
   app().className = cls;
   app().innerHTML = html;
   window.scrollTo(0, 0);
+  Ambient.set(ambientScene());
 }
 
 function roleCardHTML(p, g) {
@@ -266,10 +436,14 @@ function bindPlayerButtons(onPick) {
 }
 
 function header(title, showMenu) {
+  const soundBtn = game ? `<button class="topbar-menu" id="soundBtn" aria-label="Geluid">${soundOn() ? '🔊' : '🔇'}</button>` : '';
   return `
     <header class="topbar">
       <span class="topbar-title">${title}</span>
-      ${showMenu ? '<button class="topbar-menu" id="menuBtn" aria-label="Menu">⋮</button>' : ''}
+      <span class="topbar-right">
+        ${soundBtn}
+        ${showMenu ? '<button class="topbar-menu" id="menuBtn" aria-label="Menu">⋮</button>' : ''}
+      </span>
     </header>`;
 }
 function bindMenu() {

@@ -61,6 +61,7 @@ h2 { font-size: 1.35rem; }
   background: linear-gradient(var(--bg2), transparent);
 }
 .topbar-title { font-weight: 700; color: var(--muted); }
+.topbar-right { display: flex; gap: 8px; }
 .topbar-menu {
   background: var(--panel); color: var(--text); border: none; border-radius: 10px;
   font-size: 1.3rem; width: 40px; height: 40px; cursor: pointer;
