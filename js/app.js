@@ -506,20 +506,31 @@ function renderNightRest() {
 }
 
 function renderNightSleep() {
+  // Geen knop: wie de app bedient speelt zelf mee en moet ook de ogen dicht
+  // doen. De nacht begint daarom vanzelf na een korte aftelling.
+  const SLEEP_SECONDS = 10;
   const meisje = game.players.find(p => p.alive && p.role === 'meisje');
   screen(`
     ${header(`Nacht ${game.round}`, true)} ${nightTimerChip()}
     <div class="center-stage night">
       <div class="big-emoji">🌙</div>
       <h2>Iedereen ogen dicht!</h2>
-      <p class="muted">Leg de telefoon in het midden van de tafel.</p>
+      <p class="muted">Leg de telefoon in het midden van de tafel.<br>De nacht begint vanzelf…</p>
       ${meisje ? `<p class="callout">👧 Glurend meisje: straks, als de weerwolf wakker is, mag jij héél voorzichtig gluren. Op eigen risico!</p>` : ''}
-      <button class="btn primary big" id="go">Iedereen slaapt → verder</button>
+      <div class="rest-count" id="restCount">${SLEEP_SECONDS}</div>
+      <button class="btn subtle" id="skip">verder ›</button>
     </div>
   `, 'theme-night');
   bindMenu(); startNightTimerChip();
-  speak(`Nacht ${game.round}. Iedereen doet zijn ogen dicht en gaat slapen.`);
-  $('#go').addEventListener('click', nightNext);
+  speak(`Nacht ${game.round}. Iedereen doet zijn ogen dicht en gaat slapen. De nacht begint vanzelf.`);
+  let left = SLEEP_SECONDS;
+  every(1000, () => {
+    left--;
+    const el = $('#restCount');
+    if (el) el.textContent = left;
+    if (left <= 0) nightNext();
+  });
+  $('#skip').addEventListener('click', nightNext);
 }
 
 function renderNightZiener() {
