@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 10;
+const APP_VERSION = 11;
 
 /** Beschikbare avatars; de eerste rij mensjes zijn de standaardtoewijzing. */
 const AVATARS = ['👨', '👩', '👦', '👧', '👴', '👵', '🐺', '🐱', '🐶', '🐰', '🦊', '🐻', '🦁', '🐸', '🦄', '🐷'];
@@ -99,6 +99,80 @@ function beep(freq = 660, dur = 0.15) {
     o.start(); o.stop(audioCtx.currentTime + dur);
   } catch {}
 }
+
+/* ---------- openingsgeluid: wolvengehuil met wind (gesynthetiseerd) ---------- */
+
+let howlPlayed = false;
+
+function synthHowl(ctx) {
+  const t0 = ctx.currentTime;
+  const master = ctx.createGain();
+  master.gain.value = 1;
+  master.connect(ctx.destination);
+
+  // Wind: ruis door een zwevend laagdoorlaatfilter
+  const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const data = noiseBuf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const noise = ctx.createBufferSource();
+  noise.buffer = noiseBuf; noise.loop = true;
+  const windFilter = ctx.createBiquadFilter();
+  windFilter.type = 'lowpass'; windFilter.frequency.value = 350; windFilter.Q.value = 0.8;
+  const windLfo = ctx.createOscillator(); windLfo.frequency.value = 0.25;
+  const windLfoGain = ctx.createGain(); windLfoGain.gain.value = 180;
+  windLfo.connect(windLfoGain).connect(windFilter.frequency);
+  const windGain = ctx.createGain();
+  windGain.gain.setValueAtTime(0.0001, t0);
+  windGain.gain.exponentialRampToValueAtTime(0.07, t0 + 1.2);
+  windGain.gain.setValueAtTime(0.07, t0 + 5);
+  windGain.gain.exponentialRampToValueAtTime(0.0001, t0 + 7.5);
+  noise.connect(windFilter).connect(windGain).connect(master);
+  noise.start(t0); noise.stop(t0 + 7.6);
+  windLfo.start(t0); windLfo.stop(t0 + 7.6);
+
+  // Eén huil: ahoe-oe-oeee — toon glijdt omhoog, trilt even, zakt weg
+  const howlOnce = (start, base, vol) => {
+    const osc = ctx.createOscillator(); osc.type = 'triangle';
+    const osc2 = ctx.createOscillator(); osc2.type = 'triangle'; osc2.detune.value = 6;
+    const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = 1400;
+    const g = ctx.createGain();
+    const vib = ctx.createOscillator(); vib.frequency.value = 5.2;
+    const vibGain = ctx.createGain(); vibGain.gain.value = base * 0.03;
+    vib.connect(vibGain); vibGain.connect(osc.frequency); vibGain.connect(osc2.frequency);
+    for (const o of [osc, osc2]) {
+      o.frequency.setValueAtTime(base * 0.55, start);
+      o.frequency.exponentialRampToValueAtTime(base, start + 0.85);      // a-hoe omhoog
+      o.frequency.setValueAtTime(base, start + 2.0);                     // oeee aanhouden
+      o.frequency.exponentialRampToValueAtTime(base * 0.68, start + 3.0); // wegzakken
+      o.connect(filt);
+    }
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(vol, start + 0.5);
+    g.gain.setValueAtTime(vol, start + 2.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + 3.2);
+    filt.connect(g).connect(master);
+    osc.start(start); osc.stop(start + 3.3);
+    osc2.start(start); osc2.stop(start + 3.3);
+    vib.start(start); vib.stop(start + 3.3);
+  };
+  howlOnce(t0 + 0.8, 420, 0.12);   // de wolf dichtbij
+  howlOnce(t0 + 2.6, 330, 0.05);   // een tweede, verder weg
+}
+
+/** Speel het openingsgeluid één keer; browsers staan geluid soms pas na de
+ *  eerste aanraking toe, dus we proberen het bij openen én bij de eerste tik. */
+function tryHowl() {
+  if (howlPlayed) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume().then(() => {
+      if (howlPlayed || audioCtx.state !== 'running') return;
+      howlPlayed = true;
+      synthHowl(audioCtx);
+    }).catch(() => {});
+  } catch {}
+}
+window.addEventListener('pointerdown', tryHowl);
 
 /* ---------- hulpjes ---------- */
 
@@ -1257,4 +1331,7 @@ function render() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', renderHome);
+document.addEventListener('DOMContentLoaded', () => {
+  renderHome();
+  tryHowl(); // ahoeoeee 🐺 (lukt dit nog niet van de browser, dan bij de eerste tik)
+});
