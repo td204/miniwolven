@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 23;
+const APP_VERSION = 24;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -213,6 +213,29 @@ function synthHowl(ctx) {
   howlOnce(t0 + 2.8, 310, 0.04);   // een tweede, verder weg
 }
 
+/** Echte wolvenhuil (audio/wolf-howl.mp3), bewust niet te hard en met nette
+ *  fades. Laadt het bestand niet, dan valt hij terug op de synthese-huil. */
+function playHowlFile(ctx) {
+  const VOLUME = 0.28;
+  fetch('audio/wolf-howl.mp3')
+    .then(r => { if (!r.ok) throw new Error('geen audio'); return r.arrayBuffer(); })
+    .then(buf => ctx.decodeAudioData(buf))
+    .then(audio => {
+      const src = ctx.createBufferSource();
+      src.buffer = audio;
+      const g = ctx.createGain();
+      const t = ctx.currentTime;
+      const end = t + audio.duration;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(VOLUME, t + 0.4);
+      g.gain.setValueAtTime(VOLUME, Math.max(t + 0.4, end - 0.8));
+      g.gain.exponentialRampToValueAtTime(0.0001, end);
+      src.connect(g).connect(ctx.destination);
+      src.start(t);
+    })
+    .catch(() => synthHowl(ctx));
+}
+
 /** Speel het openingsgeluid één keer; browsers staan geluid soms pas na de
  *  eerste aanraking toe, dus we proberen het bij openen én bij de eerste tik. */
 function tryHowl() {
@@ -223,7 +246,7 @@ function tryHowl() {
     audioCtx.resume().then(() => {
       if (howlPlayed || audioCtx.state !== 'running') return;
       howlPlayed = true;
-      synthHowl(audioCtx);
+      playHowlFile(audioCtx);
     }).catch(() => {});
   } catch {}
 }
