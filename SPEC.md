@@ -78,7 +78,9 @@ burger. Validatie: minstens 1 wolf, minstens 2 niet-wolven, wolven < helft van d
 - 🕵️ **Gok-ronde in de app** aan/uit (uit = gewoon hardop overleggen).
 - 🤫 **Geheime hint** (variatie): één willekeurige niet-wolf krijgt op de rolkaart een
   hint: "de weerwolf is X of Y".
-- ⏱️ **Nacht-timer** (uit/30/60/90 sec) en ☀️ **overleg-timer** (uit/2/3/5 min).
+- ☀️ **Overleg-timer** overdag (uit/2/3/5 min). Een aparte nacht-timer is er bewust
+  niet: de nacht loopt vanzelf (automatische start-aftelling, herhaalde
+  wakker-word-oproepen, stille rustpauzes).
 
 ## 5. Opgeslagen gegevens (localStorage)
 

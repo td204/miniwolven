@@ -95,7 +95,6 @@ const Engine = {
         voice: true,           // verteller-stem (spraak)
         hint: false,           // variatie: één speler krijgt een geheime hint
         guessing: true,        // gok-ronde in de app bijhouden
-        nightTimerSec: 0,      // 0 = uit
         dayTimerSec: 180,
       }, cfg.settings || {}),
       players,

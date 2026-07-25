@@ -220,7 +220,7 @@ function startSetup(names) {
     names: names ? names.slice() : ['', '', '', ''],
     settings: Object.assign({
       deathMode: 'app', voice: true, hint: false, guessing: true,
-      nightTimerSec: 0, dayTimerSec: 180,
+      dayTimerSec: 180,
     }, prefs.settings || {}),
     wolves: null, specials: null, // null = automatisch
   };
@@ -321,10 +321,6 @@ function renderSetupRoles() {
       <label class="opt"><input type="checkbox" id="optVoice" ${s.voice ? 'checked' : ''}> 🗣️ Verteller-stem (de app praat)</label>
       <label class="opt"><input type="checkbox" id="optGuess" ${s.guessing ? 'checked' : ''}> 🕵️ Gok-ronde in de app (houdt scores bij)</label>
       <label class="opt"><input type="checkbox" id="optHint" ${s.hint ? 'checked' : ''}> 🤫 Variatie: één speler krijgt een geheime hint</label>
-      <label class="opt">⏱️ Nacht-timer
-        <select id="optNightTimer" class="select">
-          ${[0, 30, 60, 90].map(v => `<option value="${v}" ${s.nightTimerSec === v ? 'selected' : ''}>${v === 0 ? 'uit' : v + ' sec'}</option>`).join('')}
-        </select></label>
       <label class="opt">☀️ Overleg-timer overdag
         <select id="optDayTimer" class="select">
           ${[0, 120, 180, 300].map(v => `<option value="${v}" ${s.dayTimerSec === v ? 'selected' : ''}>${v === 0 ? 'uit' : (v / 60) + ' min'}</option>`).join('')}
@@ -347,7 +343,6 @@ function renderSetupRoles() {
   $('#optVoice').addEventListener('change', e => s.voice = e.target.checked);
   $('#optGuess').addEventListener('change', e => s.guessing = e.target.checked);
   $('#optHint').addEventListener('change', e => s.hint = e.target.checked);
-  $('#optNightTimer').addEventListener('change', e => s.nightTimerSec = Number(e.target.value));
   $('#optDayTimer').addEventListener('change', e => s.dayTimerSec = Number(e.target.value));
   $('#deal').addEventListener('click', () => {
     Store.set(KEYS.prefs, { settings: s });
@@ -441,22 +436,6 @@ function speakNagging(first, variants) {
   every(7000, () => { speak(variants[i % variants.length]); i++; });
 }
 
-function nightTimerChip() {
-  return game.settings.nightTimerSec ? `<div class="timer-chip" id="nightTimer"></div>` : '';
-}
-function startNightTimerChip() {
-  if (!game.settings.nightTimerSec) return;
-  if (ui.nightDeadline == null) ui.nightDeadline = Date.now() + game.settings.nightTimerSec * 1000;
-  const el = $('#nightTimer');
-  if (!el) return;
-  const tick = () => {
-    const left = Math.max(0, Math.ceil((ui.nightDeadline - Date.now()) / 1000));
-    el.textContent = `⏱️ ${left}s`;
-    if (left === 0 && !ui.nightTimeUp) { ui.nightTimeUp = true; beep(440, 0.4); el.classList.add('over'); }
-  };
-  tick(); every(500, tick);
-}
-
 function renderNight() {
   if (ui.stepStage === 'rest') return renderNightRest();
   const step = Engine.nightStep(game);
@@ -511,8 +490,7 @@ function renderNightSleep() {
   const SLEEP_SECONDS = 10;
   const meisje = game.players.find(p => p.alive && p.role === 'meisje');
   screen(`
-    ${header(`Nacht ${game.round}`, true)} ${nightTimerChip()}
-    <div class="center-stage night">
+    ${header(`Nacht ${game.round}`, true)}    <div class="center-stage night">
       <div class="big-emoji">🌙</div>
       <h2>Iedereen ogen dicht!</h2>
       <p class="muted">Leg de telefoon in het midden van de tafel.<br>De nacht begint vanzelf…</p>
@@ -521,7 +499,7 @@ function renderNightSleep() {
       <button class="btn subtle" id="skip">verder ›</button>
     </div>
   `, 'theme-night');
-  bindMenu(); startNightTimerChip();
+  bindMenu();
   speak(`Nacht ${game.round}. Iedereen doet zijn ogen dicht en gaat slapen. De nacht begint vanzelf.`);
   let left = SLEEP_SECONDS;
   every(1000, () => {
@@ -539,15 +517,14 @@ function renderNightZiener() {
 
   if (ui.stepStage === 'wake') {
     screen(`
-      ${header(`Nacht ${game.round} · ziener`, true)} ${nightTimerChip()}
-      <div class="center-stage night">
+      ${header(`Nacht ${game.round} · ziener`, true)}      <div class="center-stage night">
         <div class="big-emoji">🔮</div>
         <h2>Ziener, word wakker</h2>
         <p class="muted">Alleen de ziener doet nu de ogen open en pakt stilletjes de telefoon.</p>
         <button class="btn primary big" id="me">Ik ben de ziener 🔮</button>
       </div>
     `, 'theme-night');
-    bindMenu(); startNightTimerChip();
+    bindMenu();
     speakNagging('Ziener, word wakker. Pak stilletjes de telefoon.', [
       'Ziener! Hallo ziener! Word wakker.',
       'Ziener, word wakker en pak de telefoon.',
@@ -593,8 +570,7 @@ function renderNightWolf() {
 
   if (ui.stepStage === 'wake') {
     screen(`
-      ${header(`Nacht ${game.round} · weerwolf`, true)} ${nightTimerChip()}
-      <div class="center-stage night">
+      ${header(`Nacht ${game.round} · weerwolf`, true)}      <div class="center-stage night">
         <div class="big-emoji">🐺</div>
         <h2>${multi ? 'Weerwolven, word wakker' : 'Weerwolf, word wakker'}</h2>
         <p class="muted">${multi ? 'Alleen de weerwolven doen de ogen open.' : 'Alleen de weerwolf doet de ogen open.'}
@@ -602,7 +578,7 @@ function renderNightWolf() {
         <button class="btn primary big" id="me">${multi ? 'Wij zijn wakker' : 'Ik ben wakker'} 🐺</button>
       </div>
     `, 'theme-night');
-    bindMenu(); startNightTimerChip();
+    bindMenu();
     const wolfWord = multi ? 'Weerwolven' : 'Weerwolf';
     speakNagging(`${wolfWord}, word wakker.`, [
       `${wolfWord}! Hallo ${wolfWord.toLowerCase()}! Word wakker.`,
@@ -670,15 +646,14 @@ function renderNightHeks() {
 
   if (ui.stepStage === 'wake') {
     screen(`
-      ${header(`Nacht ${game.round} · heks`, true)} ${nightTimerChip()}
-      <div class="center-stage night">
+      ${header(`Nacht ${game.round} · heks`, true)}      <div class="center-stage night">
         <div class="big-emoji">🧪</div>
         <h2>Heks, word wakker</h2>
         <p class="muted">Alleen de heks doet de ogen open en pakt stilletjes de telefoon.</p>
         <button class="btn primary big" id="me">Ik ben de heks 🧪</button>
       </div>
     `, 'theme-night');
-    bindMenu(); startNightTimerChip();
+    bindMenu();
     speakNagging('Heks, word wakker. Pak stilletjes de telefoon.', [
       'Heks! Hallo heks! Word wakker.',
       'Heks, word wakker!',
