@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 21;
+const APP_VERSION = 22;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -483,9 +483,11 @@ function ambientScene() {
     if (step === 'ziener' || step === 'wolf' || step === 'heks') {
       // Zodra de rol op 'ik ben wakker' drukt en de telefoon vastheeft, moet
       // het STIL zijn: geluid uit de speaker verraadt waar de telefoon is.
-      const secretStage = ui.stepStage && ui.stepStage !== 'wake' && ui.stepStage !== 'rest';
+      // Dat geldt ook voor de stille teruglegfase van de rustpauze.
+      if (ui.stepStage === 'rest') return ui.restSpoken ? 'night' : null;
+      const secretStage = ui.stepStage && ui.stepStage !== 'wake';
       if (secretStage) return null;
-      return step === 'wolf' && ui.stepStage !== 'rest' ? 'tense' : 'night';
+      return step === 'wolf' ? 'tense' : 'night';
     }
     return 'night';
   }
@@ -1045,6 +1047,7 @@ function nightNext() {
 function startRest(label) {
   ui.stepStage = 'rest';
   ui.restLabel = label;
+  ui.restSpoken = false; // nachtsfeer pas aan als de stille teruglegfase voorbij is
   render();
 }
 
@@ -1076,11 +1079,13 @@ function renderNightRest() {
     const el = $('#restCount');
     if (el) el.textContent = left;
     if (left === SPOKEN_SECONDS) {
-      // telefoon ligt nu terug: vanaf hier mag er weer gepraat worden
+      // telefoon ligt nu terug: vanaf hier mag er weer gepraat en geklonken worden
       const em = $('#restEmoji'), t = $('#restTitle'), x = $('#restText');
       if (em) em.textContent = '😴';
       if (t) t.textContent = `${ui.restLabel}, ogen dicht`;
       if (x) x.textContent = 'Ssst… even helemaal stil.';
+      ui.restSpoken = true;
+      Ambient.set(ambientScene());
       speak(ui.restLabel === 'Weerwolven'
         ? 'Weerwolven, doe jullie ogen dicht.'
         : `${ui.restLabel}, doe je ogen dicht.`);
@@ -1412,11 +1417,11 @@ function renderNightSummary() {
       </div>`;
   }
 
+  // Let op: speak() moet ná screen() — screen() kapt lopende spraak juist af.
   const texts = [];
   if (saved) texts.push(`${saved.name} werd gered door de heks.`);
   for (const d of deaths) texts.push(`${d.p.name} is dood. ${d.p.name} was ${Engine.ROLES[d.p.role].naam}.`);
   if (!deaths.length && !saved) texts.push('Niemand ging dood vannacht.');
-  speak(texts.join(' '));
 
   const hunter = game.hunterPending != null ? Engine.player(game, game.hunterPending) : null;
   screen(`
@@ -1429,6 +1434,7 @@ function renderNightSummary() {
     </div>
   `);
   bindMenu();
+  speak(texts.join(' '));
   $('#go').addEventListener('click', () => {
     ui = {};
     if (game.hunterPending != null) ui.hunterActive = true;
@@ -1463,7 +1469,6 @@ function renderHunter() {
 
 function renderShotResult() {
   const s = ui.shotResult;
-  speak(`${s.name} is neergeschoten door de jager. ${s.name} was ${s.role.naam}.`);
   screen(`
     ${header('De jager schoot raak', true)}
     <div class="center-stage">
@@ -1475,6 +1480,7 @@ function renderShotResult() {
     </div>
   `);
   bindMenu();
+  speak(`${s.name} is neergeschoten door de jager. ${s.name} was ${s.role.naam}.`);
   $('#go').addEventListener('click', () => { ui = {}; render(); });
 }
 
@@ -1608,7 +1614,6 @@ function renderEnd() {
   const wolvesWon = game.winner === 'wolven';
   const scores = Engine.scores(game).slice().sort((a, b) => b.right - a.right);
   const best = scores.filter(r => !r.isWolf && r.right > 0 && r.right === Math.max(...scores.filter(x => !x.isWolf).map(x => x.right)));
-  speak(`${wolves.map(w => w.name).join(' en ')} ${wolves.length > 1 ? 'waren de weerwolven' : 'was de weerwolf'}. De ${wolvesWon ? 'weerwolven' : 'burgers'} winnen!`);
 
   screen(`
     ${header('De onthulling')}
@@ -1641,6 +1646,7 @@ function renderEnd() {
       <button class="btn" id="home">🏠 Naar het beginscherm</button>
     </div>
   `);
+  speak(`${wolves.map(w => w.name).join(' en ')} ${wolves.length > 1 ? 'waren de weerwolven' : 'was de weerwolf'}. De ${wolvesWon ? 'weerwolven' : 'burgers'} winnen!`);
   $('#again').addEventListener('click', () => {
     const names = game.players.map(p => p.name);
     const avatars = game.players.map(p => av(p));
