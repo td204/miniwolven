@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 16;
+const APP_VERSION = 17;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -381,12 +381,26 @@ function audioSleep() {
     if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
   } catch {}
 }
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { audioSleep(); return; }
+function audioWake() {
+  if (document.hidden) return;
   if (audioCtx) audioCtx.resume().catch(() => {});
   Ambient.set(ambientScene()); // sfeer komt vers en met fade-in terug
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) audioSleep(); else audioWake();
 });
+// Extra vangnetten: sommige overgangen (andere app in split-screen, systeem-
+// overlays, bevroren tabblad) melden zich niet altijd via visibilitychange.
 window.addEventListener('pagehide', audioSleep);
+window.addEventListener('blur', audioSleep);
+window.addEventListener('focus', audioWake);
+document.addEventListener('freeze', audioSleep);
+// Waakhond: draait er nog geluid terwijl de app niet zichtbaar is? Direct uit.
+setInterval(() => {
+  if ((document.hidden || !document.hasFocus()) && audioCtx && audioCtx.state === 'running' && Ambient.scene) {
+    audioSleep();
+  }
+}, 2000);
 
 /** Welke sfeer past bij het scherm dat nu zichtbaar is? */
 function ambientScene() {
@@ -1431,7 +1445,7 @@ function renderEnd() {
         <h2 class="reveal-line" id="line">Het is…</h2>
       </div>
     `, 'theme-night');
-    speak('Het issss…');
+    speak('Het is…');
     const boom = hard => {
       drumBoom(hard ? 0.7 : 0.5);
       const d = $('#drum');
@@ -1439,7 +1453,7 @@ function renderEnd() {
     };
     after(1500, () => {
       const l = $('#line'); if (l) l.textContent = 'Het is… het is…';
-      speak('het issss…');
+      speak('het is…');
     });
     after(3000, () => boom(false));
     after(3800, () => boom(false));
