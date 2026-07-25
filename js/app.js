@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 14;
+const APP_VERSION = 15;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -355,6 +355,35 @@ const AMBIENT_SCENES = {
   dawn:  (ctx, g, amb) => { ambWind(ctx, g, amb, 400, 0.014); ambBirds(ctx, g, amb, 0.55); },
   day:   (ctx, g, amb) => { ambWind(ctx, g, amb, 500, 0.018); ambBirds(ctx, g, amb, 0.3); },
 };
+
+/**
+ * App naar de achtergrond → al het geluid meteen hard uit en de audio-engine
+ * slapen leggen. Zonder dit hervatten oscillators bij het heropenen midden in
+ * hun golfvorm: dat hoor je als een kraakje.
+ */
+function audioSleep() {
+  try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch {}
+  try {
+    Ambient.timers.forEach(t => clearInterval(t));
+    Ambient.timers = [];
+    if (Ambient.gain && audioCtx) {
+      Ambient.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+      Ambient.gain.gain.value = 0;
+    }
+    Ambient.sources.forEach(s => { try { s.stop(); } catch {} });
+    Ambient.sources = [];
+    if (Ambient.gain) { try { Ambient.gain.disconnect(); } catch {} }
+    Ambient.gain = null;
+    Ambient.scene = null;
+    if (audioCtx && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
+  } catch {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { audioSleep(); return; }
+  if (audioCtx) audioCtx.resume().catch(() => {});
+  Ambient.set(ambientScene()); // sfeer komt vers en met fade-in terug
+});
+window.addEventListener('pagehide', audioSleep);
 
 /** Welke sfeer past bij het scherm dat nu zichtbaar is? */
 function ambientScene() {
