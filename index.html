@@ -23,7 +23,17 @@
     // Service worker alleen op https/localhost (niet op file://)
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+        navigator.serviceWorker.register('sw.js').then(reg => reg.update()).catch(() => {});
+      });
+      // Nieuwe versie geactiveerd? Eén keer herladen zodat die meteen draait
+      // (een lopend spel staat opgeslagen en wordt gewoon hervat). Niet bij de
+      // allereerste installatie — dan neemt de worker de pagina ook over.
+      const hadController = !!navigator.serviceWorker.controller;
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || reloaded) return;
+        reloaded = true;
+        location.reload();
       });
     }
   </script>

@@ -1,5 +1,5 @@
 /* Miniwolven service worker — app-shell caching zodat de app offline werkt. */
-const CACHE = 'miniwolven-v6';
+const CACHE = 'miniwolven-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -26,9 +26,20 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Cache-first met netwerk-fallback; navigaties vallen terug op de app-shell.
+// Navigaties netwerk-eerst (zo komen updates direct binnen), overige assets
+// cache-eerst met netwerk-fallback; offline blijft alles werken.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(resp => {
+        const copy = resp.clone();
+        caches.open(CACHE).then(c => c.put('./index.html', copy));
+        return resp;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then(cached =>
       cached ||
@@ -38,7 +49,7 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put(e.request, copy));
         }
         return resp;
-      }).catch(() => (e.request.mode === 'navigate' ? caches.match('./index.html') : undefined))
+      })
     )
   );
 });
