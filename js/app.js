@@ -18,12 +18,21 @@ const Store = {
 
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
+/** Beschikbare avatars; de eerste rij mensjes zijn de standaardtoewijzing. */
+const AVATARS = ['👨', '👩', '👦', '👧', '👴', '👵', '🐺', '🐱', '🐶', '🐰', '🦊', '🐻', '🦁', '🐸', '🦄', '🐷'];
+
+const av = p => p.avatar || '🙂';
+
 function saveGame() { if (game) Store.set(KEYS.game, game); }
 function clearGame() { game = null; Store.del(KEYS.game); }
 
 function knownPlayers() {
   const stats = Store.get(KEYS.stats, {});
-  return Object.values(stats).sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0)).map(s => s.name);
+  return Object.values(stats).sort((a, b) => (b.lastPlayed || 0) - (a.lastPlayed || 0));
+}
+
+function knownPlayer(name) {
+  return Store.get(KEYS.stats, {})[String(name).trim().toLowerCase()] || null;
 }
 
 function rememberGroup(names) {
@@ -49,6 +58,8 @@ function recordStats(g) {
     if (p.role === 'wolf') s.wolfGames++;
     const row = scores.find(r => r.id === p.id);
     if (row && !row.isWolf) { s.guessesRight += row.right; s.guessesTotal += row.total; }
+    s.avatar = p.avatar;
+    s.kleuter = !!p.kleuter;
     s.lastPlayed = Date.now();
     stats[k] = s;
   }
@@ -110,9 +121,19 @@ function roleCardHTML(p, g) {
   let extra = '';
   if (p.role === 'wolf') {
     const mates = Engine.fellowWolves(g, p.id);
-    if (mates.length) extra += `<p class="card-extra">🐺 Je mede-wolf: <b>${esc(mates.map(m => m.name).join(' en '))}</b>. Jullie jagen samen.</p>`;
+    if (mates.length) extra += `<p class="card-extra">🐺 Je mede-wolf: <b>${mates.map(m => `${av(m)} ${esc(m.name)}`).join(' en ')}</b>. Jullie jagen samen.</p>`;
   }
   if (p.hint) extra += `<p class="card-hint">🤫 ${esc(p.hint)}</p>`;
+  // Kleuter-modus: extra groot plaatje, geen leestekst — het beeld ís de rol.
+  if (p.kleuter) {
+    return `
+      <div class="rolecard rolecard-kleuter team-${r.team}">
+        <div class="rolecard-emoji xl">${r.emoji}</div>
+        <div class="rolecard-name">${r.naam}</div>
+        <p class="rolecard-kort">${r.kort}</p>
+        ${extra}
+      </div>`;
+  }
   return `
     <div class="rolecard team-${r.team}">
       <div class="rolecard-emoji">${r.emoji}</div>
@@ -140,9 +161,14 @@ function bindHoldReveal(holdEl, cardEl, onFirstReveal) {
   holdEl.addEventListener('contextmenu', e => e.preventDefault());
 }
 
-function playerButtons(players, onPick, cls = '') {
-  return players.map(p =>
-    `<button class="btn player-pick ${cls}" data-id="${p.id}">${esc(p.name)}</button>`).join('');
+function playerButtons(players) {
+  // Grote aanwijs-tegels met avatar: ook een kleuter die nog niet kan lezen
+  // herkent zo wie hij aanwijst.
+  return `<div class="player-grid">${players.map(p => `
+    <button class="player-pick" data-id="${p.id}">
+      <span class="pp-avatar">${av(p)}</span>
+      <span class="pp-name">${esc(p.name)}</span>
+    </button>`).join('')}</div>`;
 }
 function bindPlayerButtons(onPick) {
   $$('.player-pick').forEach(b => b.addEventListener('click', () => onPick(Number(b.dataset.id))));
@@ -184,7 +210,7 @@ function renderHome() {
     </div>
     <div class="stack">
       ${hasGame ? `
-        <button class="btn primary big" id="resumeBtn">▶️ Hervat spel <small>ronde ${game.round || 1} · ${game.players.map(p => esc(p.name)).join(', ')}</small></button>
+        <button class="btn primary big" id="resumeBtn">▶️ Hervat spel <small>ronde ${game.round || 1} · ${game.players.map(p => `${av(p)} ${esc(p.name)}`).join(', ')}</small></button>
         <button class="btn subtle" id="discardBtn">🗑️ Lopend spel weggooien</button>` : ''}
       <button class="btn primary big" id="newBtn">🌕 Nieuw spel</button>
       ${groups.length ? `
@@ -218,12 +244,18 @@ function startSetup(names) {
   const prefs = Store.get(KEYS.prefs, {});
   setup = {
     names: names ? names.slice() : ['', '', '', ''],
+    avatars: [], kleuters: [],
     settings: Object.assign({
       deathMode: 'app', voice: true, hint: false, guessing: true,
       dayTimerSec: 180,
     }, prefs.settings || {}),
     wolves: null, specials: null, // null = automatisch
   };
+  setup.names.forEach((nm, i) => {
+    const known = nm ? knownPlayer(nm) : null;
+    setup.avatars[i] = (known && known.avatar) || AVATARS[i % AVATARS.length];
+    setup.kleuters[i] = !!(known && known.kleuter);
+  });
   renderSetupPlayers();
 }
 
@@ -240,26 +272,57 @@ function renderSetupPlayers() {
       </div>
       <div id="nameInputs" class="stack tight">
         ${setup.names.map((nm, i) => `
-          <input class="input name-input" data-i="${i}" value="${esc(nm)}"
-                 placeholder="Naam speler ${i + 1}" autocomplete="off" enterkeyhint="next">`).join('')}
+          <div class="player-row">
+            <button class="avatar-btn" data-i="${i}" aria-label="Kies avatar">${setup.avatars[i]}</button>
+            <input class="input name-input" data-i="${i}" value="${esc(nm)}"
+                   placeholder="Naam speler ${i + 1}" autocomplete="off" enterkeyhint="next">
+            <button class="kleuter-btn ${setup.kleuters[i] ? 'on' : ''}" data-i="${i}" aria-label="Kleuter-modus">🧒</button>
+          </div>`).join('')}
       </div>
+      <p class="muted">Tik het plaatje voor een andere avatar. Zet 🧒 aan voor een kleuter
+      die nog niet kan lezen: die krijgt extra grote plaatjes in plaats van tekst.</p>
       ${known.length ? `
         <div class="section-label">Bekende spelers — tik om in te vullen</div>
-        <div class="chips">${known.slice(0, 12).map(nm => `<button class="chip" data-name="${esc(nm)}">${esc(nm)}</button>`).join('')}</div>` : ''}
+        <div class="chips">${known.slice(0, 12).map(s => `<button class="chip" data-name="${esc(s.name)}">${s.avatar || ''} ${esc(s.name)}</button>`).join('')}</div>` : ''}
       <div id="setupError" class="error"></div>
       <button class="btn primary big" id="next">Verder → rollen kiezen</button>
       <button class="btn subtle" id="back">← Terug</button>
     </div>
   `);
   const readNames = () => { $$('.name-input').forEach(inp => setup.names[Number(inp.dataset.i)] = inp.value); };
-  $('#minus').addEventListener('click', () => { readNames(); if (setup.names.length > 3) { setup.names.pop(); renderSetupPlayers(); } });
-  $('#plus').addEventListener('click', () => { readNames(); if (setup.names.length < 12) { setup.names.push(''); renderSetupPlayers(); } });
+  $('#minus').addEventListener('click', () => {
+    readNames();
+    if (setup.names.length > 3) { setup.names.pop(); setup.avatars.pop(); setup.kleuters.pop(); renderSetupPlayers(); }
+  });
+  $('#plus').addEventListener('click', () => {
+    readNames();
+    if (setup.names.length < 12) {
+      const used = new Set(setup.avatars);
+      setup.avatars.push(AVATARS.find(a => !used.has(a)) || AVATARS[setup.names.length % AVATARS.length]);
+      setup.kleuters.push(false);
+      setup.names.push('');
+      renderSetupPlayers();
+    }
+  });
+  $$('.avatar-btn').forEach(b => b.addEventListener('click', () => {
+    readNames();
+    showAvatarPicker(Number(b.dataset.i));
+  }));
+  $$('.kleuter-btn').forEach(b => b.addEventListener('click', () => {
+    readNames();
+    const i = Number(b.dataset.i);
+    setup.kleuters[i] = !setup.kleuters[i];
+    renderSetupPlayers();
+  }));
   $$('.chip').forEach(c => c.addEventListener('click', () => {
     readNames();
     const name = c.dataset.name;
     if (setup.names.some(x => x.trim().toLowerCase() === name.toLowerCase())) return;
     const empty = setup.names.findIndex(x => !x.trim());
-    if (empty >= 0) setup.names[empty] = name; else return;
+    if (empty < 0) return;
+    setup.names[empty] = name;
+    const s = knownPlayer(name);
+    if (s) { if (s.avatar) setup.avatars[empty] = s.avatar; setup.kleuters[empty] = !!s.kleuter; }
     renderSetupPlayers();
   }));
   $('#next').addEventListener('click', () => {
@@ -272,6 +335,28 @@ function renderSetupPlayers() {
     renderSetupRoles();
   });
   $('#back').addEventListener('click', renderHome);
+}
+
+function showAvatarPicker(i) {
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="sheet">
+      <div class="section-label">Kies een avatar voor ${esc(setup.names[i] || `speler ${i + 1}`)}</div>
+      <div class="avatar-grid">
+        ${AVATARS.map(a => `<button class="avatar-opt ${setup.avatars[i] === a ? 'on' : ''}" data-a="${a}">${a}</button>`).join('')}
+      </div>
+      <button class="btn subtle" id="avClose">Sluiten</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('#avClose').addEventListener('click', close);
+  overlay.querySelectorAll('.avatar-opt').forEach(b => b.addEventListener('click', () => {
+    setup.avatars[i] = b.dataset.a;
+    close();
+    renderSetupPlayers();
+  }));
 }
 
 /* ---------- setup: rollen & opties ---------- */
@@ -320,7 +405,9 @@ function renderSetupRoles() {
       <div class="section-label">Opties</div>
       <label class="opt"><input type="checkbox" id="optVoice" ${s.voice ? 'checked' : ''}> 🗣️ Verteller-stem (de app praat)</label>
       <label class="opt"><input type="checkbox" id="optGuess" ${s.guessing ? 'checked' : ''}> 🕵️ Gok-ronde in de app (houdt scores bij)</label>
-      <label class="opt"><input type="checkbox" id="optHint" ${s.hint ? 'checked' : ''}> 🤫 Variatie: één speler krijgt een geheime hint</label>
+      ${setup.kleuters.some(Boolean)
+        ? `<label class="opt disabled"><input type="checkbox" disabled> 🤫 Geheime hint <small>· uit: er speelt een kleuter mee, die kan de hint niet lezen</small></label>`
+        : `<label class="opt"><input type="checkbox" id="optHint" ${s.hint ? 'checked' : ''}> 🤫 Variatie: één speler krijgt een geheime hint</label>`}
       <label class="opt">☀️ Overleg-timer overdag
         <select id="optDayTimer" class="select">
           ${[0, 120, 180, 300].map(v => `<option value="${v}" ${s.dayTimerSec === v ? 'selected' : ''}>${v === 0 ? 'uit' : (v / 60) + ' min'}</option>`).join('')}
@@ -342,13 +429,16 @@ function renderSetupRoles() {
   $$('.seg-opt').forEach(b => b.addEventListener('click', () => { s.deathMode = b.dataset.mode; renderSetupRoles(); }));
   $('#optVoice').addEventListener('change', e => s.voice = e.target.checked);
   $('#optGuess').addEventListener('change', e => s.guessing = e.target.checked);
-  $('#optHint').addEventListener('change', e => s.hint = e.target.checked);
+  const optHint = $('#optHint');
+  if (optHint) optHint.addEventListener('change', e => s.hint = e.target.checked);
   $('#optDayTimer').addEventListener('change', e => s.dayTimerSec = Number(e.target.value));
   $('#deal').addEventListener('click', () => {
+    if (setup.kleuters.some(Boolean)) s.hint = false;
     Store.set(KEYS.prefs, { settings: s });
     rememberGroup(setup.names);
     game = Engine.newGame({
-      names: setup.names, wolves: setup.wolves, specials: setup.specials,
+      names: setup.names, avatars: setup.avatars, kleuters: setup.kleuters,
+      wolves: setup.wolves, specials: setup.specials,
       settings: s, startedAt: Date.now(),
     });
     saveGame();
@@ -368,10 +458,10 @@ function renderDeal() {
     screen(`
       ${header(`Kaarten delen · ${game.deal.index + 1}/${game.players.length}`)}
       <div class="center-stage">
-        <div class="big-emoji">📵</div>
-        <h2>Geef de telefoon aan<br><span class="accent">${esc(p.name)}</span></h2>
+        <div class="big-emoji">${av(p)}</div>
+        <h2>Geef de telefoon aan<br><span class="accent">${av(p)} ${esc(p.name)}</span></h2>
         <p class="muted">Niemand anders mag meekijken.</p>
-        <button class="btn primary big" id="me">Ik ben ${esc(p.name)} ✋</button>
+        <button class="btn primary big" id="me">Ik ben ${av(p)} ${esc(p.name)} ✋</button>
       </div>
     `);
     speak(`Geef de telefoon aan ${p.name}.`);
@@ -553,8 +643,8 @@ function renderNightZiener() {
   screen(`
     ${header('Ziener', true)}
     <div class="center-stage night">
-      <div class="big-emoji">${ui.seerResult.isWolf ? '🐺' : '✅'}</div>
-      <h2>${esc(t.name)} is ${ui.seerResult.isWolf ? '<span class="danger">de WEERWOLF!</span>' : 'géén weerwolf'}</h2>
+      <div class="big-emoji">${av(t)} ${ui.seerResult.isWolf ? '🐺' : '✅'}</div>
+      <h2>${av(t)} ${esc(t.name)} is ${ui.seerResult.isWolf ? '<span class="danger">de WEERWOLF!</span>' : 'géén weerwolf'}</h2>
       <p class="muted">Onthoud dit goed — en verklap het niet te snel.</p>
       <button class="btn primary big" id="done">Klaar · ogen dicht 😴</button>
     </div>
@@ -622,8 +712,8 @@ function renderNightWolf() {
   screen(`
     ${header('Weerwolf', true)}
     <div class="center-stage night">
-      <div class="big-emoji">🎯</div>
-      <h2>Vannacht pak je<br><span class="danger">${esc(t.name)}</span></h2>
+      <div class="big-emoji">🎯 ${av(t)}</div>
+      <h2>Vannacht pak je<br><span class="danger">${av(t)} ${esc(t.name)}</span></h2>
       <div class="row">
         <button class="btn half" id="backBtn">↩︎ Toch iemand anders</button>
         <button class="btn primary half" id="ok">Zeker weten 🐺</button>
@@ -687,13 +777,13 @@ function renderNightHeks() {
     <div class="stack night">
       <div class="big-emoji center">🧪</div>
       ${appMode
-        ? `<h2 class="center">Vannacht aangevallen:<br><span class="danger">${victim ? esc(victim.name) : 'niemand'}</span></h2>`
+        ? `<h2 class="center">Vannacht aangevallen:<br><span class="danger">${victim ? `${av(victim)} ${esc(victim.name)}` : 'niemand'}</span></h2>`
         : `<h2 class="center">Wil je een drankje gebruiken?</h2>
            <p class="muted center">Jij weet niet wie er is aangetikt — genezen werkt op het slachtoffer van vannacht, wie het ook is.</p>`}
       ${healed ? `<div class="pill ok">💚 Genees-drankje ingezet — het slachtoffer overleeft!</div>`
-        : healAvail && (victim || !appMode) ? `<button class="btn" id="heal">💚 Gebruik genees-drankje ${victim ? `voor ${esc(victim.name)}` : ''}</button>`
+        : healAvail && (victim || !appMode) ? `<button class="btn" id="heal">💚 Gebruik genees-drankje ${victim ? `voor ${av(victim)} ${esc(victim.name)}` : ''}</button>`
         : `<div class="pill">💚 Genees-drankje is al gebruikt</div>`}
-      ${poisoned ? `<div class="pill danger">☠️ Gif-drankje ingezet voor ${esc(Engine.player(game, game.night.witchPoisonTarget).name)}</div>`
+      ${poisoned ? `<div class="pill danger">☠️ Gif-drankje ingezet voor ${av(Engine.player(game, game.night.witchPoisonTarget))} ${esc(Engine.player(game, game.night.witchPoisonTarget).name)}</div>`
         : poisonAvail ? `<button class="btn" id="poison">☠️ Gebruik gif-drankje…</button>`
         : `<div class="pill">☠️ Gif-drankje is al gebruikt</div>`}
       <button class="btn primary big" id="done">Klaar · ogen dicht 😴</button>
@@ -784,12 +874,12 @@ function renderNightSummary() {
 
   let lines = '';
   if (!deaths.length && !saved) lines = `<h2>😮‍💨 Niemand ging dood vannacht!</h2>`;
-  if (saved) lines += `<div class="pill ok">💚 ${esc(saved.name)} werd aangevallen… maar de heks heeft ${esc(saved.name)} gered!</div>`;
+  if (saved) lines += `<div class="pill ok">💚 ${av(saved)} ${esc(saved.name)} werd aangevallen… maar de heks heeft ${esc(saved.name)} gered!</div>`;
   for (const d of deaths) {
     const r = Engine.ROLES[d.p.role];
     lines += `
       <div class="death">
-        <div class="death-name">💀 ${esc(d.p.name)}</div>
+        <div class="death-name">💀 ${av(d.p)} ${esc(d.p.name)}</div>
         <div class="death-role">${r.emoji} was ${r.naam} — ${causeText[d.cause]}</div>
       </div>`;
   }
@@ -824,7 +914,7 @@ function renderHunter() {
     ${header('De jager schiet!', true)}
     <div class="stack">
       <div class="big-emoji center">🏹</div>
-      <h2 class="center">${esc(hunter.name)}, wie neem je mee?</h2>
+      <h2 class="center">${av(hunter)} ${esc(hunter.name)}, wie neem je mee?</h2>
       ${playerButtons(Engine.alive(game))}
     </div>
   `);
@@ -834,7 +924,7 @@ function renderHunter() {
     if (!confirm(`Zeker weten? ${t.name} gaat mee met de jager.`)) return;
     Engine.hunterShoot(game, id); saveGame();
     const r = Engine.ROLES[t.role];
-    ui = { shotResult: { name: t.name, role: r } };
+    ui = { shotResult: { name: t.name, avatar: av(t), role: r } };
     render();
   });
 }
@@ -846,7 +936,7 @@ function renderShotResult() {
     ${header('De jager schoot raak', true)}
     <div class="center-stage">
       <div class="death">
-        <div class="death-name">💀 ${esc(s.name)}</div>
+        <div class="death-name">💀 ${s.avatar || ''} ${esc(s.name)}</div>
         <div class="death-role">${s.role.emoji} was ${s.role.naam} — meegenomen door de jager 🏹</div>
       </div>
       <button class="btn primary big" id="go">Verder ☀️</button>
@@ -870,7 +960,7 @@ function renderDay() {
       <div class="big-emoji center">☀️</div>
       <h2 class="center">Overleg maar eens goed…</h2>
       <p class="muted center">Wie deed er verdacht? Wie lachte er zo raar? Nog in leven:
-      ${alive.map(p => esc(p.name)).join(', ')}.</p>
+      ${alive.map(p => `${av(p)} ${esc(p.name)}`).join(', ')}.</p>
       ${s.dayTimerSec ? `
         <button class="btn" id="timerBtn">⏱️ Start ${Math.round(s.dayTimerSec / 60)} min overleg-timer</button>
         <div class="timer-big" id="dayTimer"></div>` : ''}
@@ -911,10 +1001,10 @@ function renderGuessing() {
     screen(`
       ${header(`Gok-ronde · ${game.guessQueue.index + 1}/${game.guessQueue.ids.length}`)}
       <div class="center-stage">
-        <div class="big-emoji">🤫</div>
-        <h2>Geef de telefoon aan<br><span class="accent">${esc(guesser.name)}</span></h2>
-        <p class="muted">Niemand mag meekijken met de gok.</p>
-        <button class="btn primary big" id="me">Ik ben ${esc(guesser.name)} ✋</button>
+        <div class="big-emoji">${av(guesser)}</div>
+        <h2>Geef de telefoon aan<br><span class="accent">${av(guesser)} ${esc(guesser.name)}</span></h2>
+        <p class="muted">Niemand mag meekijken met de gok. 🤫</p>
+        <button class="btn primary big" id="me">Ik ben ${av(guesser)} ${esc(guesser.name)} ✋</button>
       </div>
     `);
     speak(`Geef de telefoon aan ${guesser.name}.`);
@@ -980,7 +1070,7 @@ function renderEnd() {
     <div class="stack">
       <div class="reveal-banner ${wolvesWon ? 'wolves' : 'village'}">
         <div class="big-emoji">${wolvesWon ? '🐺' : '🎉'}</div>
-        <h2>${wolves.map(w => esc(w.name)).join(' en ')}<br>${wolves.length > 1 ? 'waren de weerwolven!' : 'was de weerwolf!'}</h2>
+        <h2>${wolves.map(w => `${av(w)} ${esc(w.name)}`).join(' en ')}<br>${wolves.length > 1 ? 'waren de weerwolven!' : 'was de weerwolf!'}</h2>
         <div class="pill ${wolvesWon ? 'danger' : 'ok'}">${wolvesWon ? '🐺 De weerwolven winnen!' : '🎉 De burgers winnen!'}</div>
       </div>
 
@@ -988,15 +1078,15 @@ function renderEnd() {
       ${game.players.map(p => {
         const r = Engine.ROLES[p.role];
         return `<div class="listrow ${p.alive ? '' : 'dead'}">
-          <span>${r.emoji} ${esc(p.name)}</span>
-          <span class="muted">${r.naam}${p.alive ? '' : ' · 💀'}</span></div>`;
+          <span>${av(p)} ${esc(p.name)}</span>
+          <span class="muted">${r.emoji} ${r.naam}${p.alive ? '' : ' · 💀'}</span></div>`;
       }).join('')}
 
       ${game.settings.guessing ? `
         <div class="section-label">Speurneus-scores 🕵️</div>
         ${scores.map(r => `
           <div class="listrow">
-            <span>${esc(r.name)}${best.some(b => b.id === r.id) ? ' 🏆' : ''}</span>
+            <span>${av(Engine.player(game, r.id))} ${esc(r.name)}${best.some(b => b.id === r.id) ? ' 🏆' : ''}</span>
             <span class="muted">${r.isWolf ? '🐺 was de wolf' : `${r.right} van ${r.total} goed`}</span>
           </div>`).join('')}` : ''}
 
@@ -1008,9 +1098,11 @@ function renderEnd() {
   `);
   $('#again').addEventListener('click', () => {
     const names = game.players.map(p => p.name);
+    const avatars = game.players.map(p => av(p));
+    const kleuters = game.players.map(p => !!p.kleuter);
     const settings = game.settings;
     clearGame();
-    setup = { names, settings: Object.assign({}, settings), wolves: null, specials: null };
+    setup = { names, avatars, kleuters, settings: Object.assign({}, settings), wolves: null, specials: null };
     renderSetupRoles();
   });
   $('#home').addEventListener('click', () => { clearGame(); renderHome(); });
@@ -1102,7 +1194,7 @@ function renderStats() {
     <div class="stack">
       ${stats.length ? stats.map(s => `
         <div class="statcard">
-          <div class="statcard-name">${esc(s.name)}</div>
+          <div class="statcard-name">${s.avatar || ''} ${esc(s.name)}${s.kleuter ? ' 🧒' : ''}</div>
           <div class="statcard-row">
             <span>🎮 ${s.games}×</span>
             <span>🏆 ${s.wins}× winst</span>

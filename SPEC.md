@@ -35,9 +35,15 @@ burger. Validatie: minstens 1 wolf, minstens 2 niet-wolven, wolven < helft van d
 
 ## 3. Spelverloop (één telefoon, doorgeven)
 
-1. **Setup** — aantal spelers (3–12), namen invullen. Bekende spelers verschijnen als
-   tik-chips; eerdere samenstellingen ("Papa, Mama, Fien, Ties") zijn met één tik te
-   herladen. Daarna rollen en opties kiezen.
+1. **Setup** — aantal spelers (3–12), namen invullen. Elke speler kiest een **avatar**
+   (👨 👩 👦 👧 👴 👵 🐺 🐱 🐶 🐰 🦊 🐻 🦁 🐸 🦄 🐷) die overal in het spel terugkomt:
+   bij het doorgeven, op de aanwijs-tegels van wolf/heks/ziener, bij het gokken en in
+   de onthulling. Per speler is er een **kleuter-modus** (🧒) voor kinderen die nog
+   niet kunnen lezen: hun rolkaart is dan één groot plaatje met minimale tekst, en
+   spelers aanwijzen doen ze via de avatar-tegels. Bekende spelers verschijnen als
+   tik-chips (avatar en kleuter-instelling onthouden); eerdere samenstellingen
+   ("Papa, Mama, Fien, Ties") zijn met één tik te herladen. Daarna rollen en opties
+   kiezen.
 2. **Kaarten delen** — per speler: "Geef de telefoon aan …" → speler bevestigt →
    **houd-vast-om-te-kijken**: de kaart is alleen zichtbaar zolang de speler de kaart
    ingedrukt houdt (loslaten = weer verborgen, niemand kan meegluren) → "Gezien —
@@ -77,7 +83,9 @@ burger. Validatie: minstens 1 wolf, minstens 2 niet-wolven, wolven < helft van d
   (Web Speech API, nl-NL).
 - 🕵️ **Gok-ronde in de app** aan/uit (uit = gewoon hardop overleggen).
 - 🤫 **Geheime hint** (variatie): één willekeurige niet-wolf krijgt op de rolkaart een
-  hint: "de weerwolf is X of Y".
+  hint: "de weerwolf is X of Y". Speelt er een kleuter mee, dan staat deze optie
+  automatisch uit (een hint die je niet kunt lezen heeft geen zin, en voorlezen kan
+  niet — de hint is geheim).
 - ☀️ **Overleg-timer** overdag (uit/2/3/5 min). Een aparte nacht-timer is er bewust
   niet: de nacht loopt vanzelf (automatische start-aftelling, herhaalde
   wakker-word-oproepen, stille rustpauzes).

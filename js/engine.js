@@ -84,6 +84,8 @@ const Engine = {
 
     const players = cfg.names.map((name, i) => ({
       id: i, name, role: roles[i], alive: true, seenCard: false,
+      avatar: (cfg.avatars && cfg.avatars[i]) || '🙂',
+      kleuter: !!(cfg.kleuters && cfg.kleuters[i]),
       hint: null, deathRound: null, deathCause: null,
     }));
 
@@ -113,8 +115,10 @@ const Engine = {
     };
 
     // Variatie: geheime hint voor één willekeurige niet-wolf.
-    if (g.settings.hint) {
-      const nonWolves = players.filter(p => p.role !== 'wolf');
+    // Kleuters kunnen niet lezen, dus die krijgen nooit de hint.
+    const hintPool = players.filter(p => p.role !== 'wolf' && !p.kleuter);
+    if (g.settings.hint && hintPool.length) {
+      const nonWolves = hintPool;
       const holder = nonWolves[Math.floor(Math.random() * nonWolves.length)];
       const wolf = players.filter(p => p.role === 'wolf')[Math.floor(Math.random() * cfg.wolves)];
       const decoys = players.filter(p => p.id !== holder.id && p.id !== wolf.id && p.role !== 'wolf');
