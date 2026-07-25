@@ -51,3 +51,7 @@ module (ook laadbaar in Node), `js/app.js` de schermen. Iconen opnieuw genereren
 ```bash
 node tools/make-icons.mjs
 ```
+
+---
+
+Gemaakt voor huiskamer-avonden vol wantrouwen. 🐺🌕
