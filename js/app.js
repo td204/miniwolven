@@ -1134,6 +1134,9 @@ function render() {
   if (ui.reviewStage) return renderReview();
   if (ui.shotResult) return renderShotResult();
   if (game.hunterPending != null && ui.hunterActive) return renderHunter();
+  // Ochtend-samenvatting eerst tonen: resolveNight zet de fase al op dag/einde,
+  // maar wat er vannacht gebeurd is moet natuurlijk wél eerst onthuld worden.
+  if (ui.stepStage === 'summary' && game.lastNight) return renderNightSummary();
   switch (game.phase) {
     case 'deal': return renderDeal();
     case 'dealDone': return renderDealDone();
