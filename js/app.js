@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 19;
+const APP_VERSION = 20;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -979,24 +979,35 @@ function startRest(label) {
 }
 
 function renderNightRest() {
-  const REST_SECONDS = 7;
+  // Twee fasen: eerst ZWIJGEND 'leg de telefoon terug' (de speler heeft hem
+  // nog vast — spraak zou verraden waar de telefoon is), en pas als hij
+  // terug in het midden ligt spreekt de app de rol toe.
+  const SILENT_SECONDS = 4;
+  const SPOKEN_SECONDS = 4;
   screen(`
     <div class="center-stage night">
-      <div class="big-emoji">😴</div>
-      <h2>${esc(ui.restLabel)}, ogen dicht</h2>
-      <p class="muted">Leg de telefoon terug in het midden.<br>Ssst… even helemaal stil.</p>
-      <div class="rest-count" id="restCount">${REST_SECONDS}</div>
+      <div class="big-emoji" id="restEmoji">📵</div>
+      <h2 id="restTitle">Leg de telefoon terug</h2>
+      <p class="muted" id="restText">Stil neerleggen in het midden van de tafel…</p>
+      <div class="rest-count" id="restCount">${SILENT_SECONDS + SPOKEN_SECONDS}</div>
       <button class="btn subtle" id="skip">verder ›</button>
     </div>
   `, 'theme-night');
-  speak(ui.restLabel === 'Weerwolven'
-    ? 'Weerwolven, doe jullie ogen dicht en leg de telefoon terug.'
-    : `${ui.restLabel}, doe je ogen dicht en leg de telefoon terug.`);
-  let left = REST_SECONDS;
+  let left = SILENT_SECONDS + SPOKEN_SECONDS;
   every(1000, () => {
     left--;
     const el = $('#restCount');
     if (el) el.textContent = left;
+    if (left === SPOKEN_SECONDS) {
+      // telefoon ligt nu terug: vanaf hier mag er weer gepraat worden
+      const em = $('#restEmoji'), t = $('#restTitle'), x = $('#restText');
+      if (em) em.textContent = '😴';
+      if (t) t.textContent = `${ui.restLabel}, ogen dicht`;
+      if (x) x.textContent = 'Ssst… even helemaal stil.';
+      speak(ui.restLabel === 'Weerwolven'
+        ? 'Weerwolven, doe jullie ogen dicht.'
+        : `${ui.restLabel}, doe je ogen dicht.`);
+    }
     if (left <= 0) nightNext();
   });
   $('#skip').addEventListener('click', nightNext);
@@ -1018,7 +1029,9 @@ function renderNightSleep() {
     </div>
   `, 'theme-night');
   bindMenu();
-  speak(`Nacht ${game.round}. Iedereen doet zijn ogen dicht en gaat slapen. De nacht begint vanzelf.`);
+  speak(`Nacht ${game.round}. Iedereen doet zijn ogen dicht en gaat slapen.` +
+    (meisje ? ' Glurend meisje: jij mag straks alléén gluren wanneer de weerwolf wakker is.' : '') +
+    ' De nacht begint vanzelf.');
   let left = SLEEP_SECONDS;
   every(1000, () => {
     left--;
@@ -1087,24 +1100,27 @@ function renderNightWolf() {
   if (!ui.stepStage) ui.stepStage = 'wake';
 
   if (ui.stepStage === 'wake') {
+    const meisje = game.players.find(p => p.alive && p.role === 'meisje');
+    const glurenZin = meisje ? ' Glurend meisje, nu mag jij heel voorzichtig gluren.' : '';
     screen(`
       ${header(`Nacht ${game.round} · weerwolf`, true)}      <div class="center-stage night">
         <div class="big-emoji">🐺</div>
         <h2>${multi ? 'Weerwolven, word wakker' : 'Weerwolf, word wakker'}</h2>
         <p class="muted">${multi ? 'Alleen de weerwolven doen de ogen open.' : 'Alleen de weerwolf doet de ogen open.'}
         ${game.settings.deathMode === 'app' ? ' Pak stilletjes de telefoon.' : ''}</p>
+        ${meisje ? '<p class="callout">👧 Glurend meisje: nu mag jij héél voorzichtig gluren — op eigen risico!</p>' : ''}
         <button class="btn primary big" id="me">${multi ? 'Wij zijn wakker' : 'Ik ben wakker'} 🐺</button>
       </div>
     `, 'theme-night');
     bindMenu();
     if (multi) {
-      speakNagging('Weerwolven, word wakker.', [
+      speakNagging('Weerwolven, word wakker.' + glurenZin, [
         'Weerwolven! Hallo weerwolven! Zijn jullie al wakker?',
         'Weerwolven, worden jullie eens wakker!',
         'Hé weerwolven! Opstaan, jullie moeten op jacht.',
       ]);
     } else {
-      speakNagging('Weerwolf, word wakker.', [
+      speakNagging('Weerwolf, word wakker.' + glurenZin, [
         'Weerwolf! Hallo weerwolf! Word wakker.',
         'Weerwolf, word wakker!',
         'Hé weerwolf! Opstaan, het is jachttijd.',
