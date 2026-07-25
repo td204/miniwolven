@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 15;
+const APP_VERSION = 16;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -201,6 +201,7 @@ function synthHowl(ctx) {
  *  eerste aanraking toe, dus we proberen het bij openen én bij de eerste tik. */
 function tryHowl() {
   if (howlPlayed || !soundOn()) return;
+  if (currentView !== 'home') return; // het gehuil hoort alleen bij het startscherm
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     audioCtx.resume().then(() => {
@@ -223,7 +224,7 @@ const Ambient = {
       return audioCtx;
     } catch { return null; }
   },
-  stop() {
+  stop(fadeSec = 0.8) {
     this.timers.forEach(t => clearInterval(t));
     this.timers = [];
     if (this.gain && audioCtx) {
@@ -231,18 +232,20 @@ const Ambient = {
       try {
         g.gain.cancelScheduledValues(t);
         g.gain.setValueAtTime(g.gain.value, t);
-        g.gain.linearRampToValueAtTime(0.0001, t + 0.8);
+        g.gain.linearRampToValueAtTime(0.0001, t + fadeSec);
       } catch {}
       setTimeout(() => {
         srcs.forEach(s => { try { s.stop(); } catch {} });
         try { g.disconnect(); } catch {}
-      }, 900);
+      }, fadeSec * 1000 + 100);
     }
     this.gain = null; this.sources = []; this.scene = null;
   },
   every(ms, fn) { this.timers.push(setInterval(fn, ms)); },
   set(scene) {
-    if (!soundOn() || !scene) { if (this.scene) this.stop(); return; }
+    // Naar stilte (geheim moment): snel uitfaden, anders verraadt de speaker
+    // nog bijna een seconde lang waar de telefoon is.
+    if (!soundOn() || !scene) { if (this.scene) this.stop(0.2); return; }
     if (scene === this.scene) return;
     this.stop();
     const ctx = this.ensure();
@@ -393,7 +396,13 @@ function ambientScene() {
   if (game.phase === 'night') {
     const step = Engine.nightStep(game);
     if (step === 'wake') return ui.stepStage === 'count' ? 'tense' : 'dawn';
-    if (step === 'wolf' && ui.stepStage !== 'rest') return 'tense';
+    if (step === 'ziener' || step === 'wolf' || step === 'heks') {
+      // Zodra de rol op 'ik ben wakker' drukt en de telefoon vastheeft, moet
+      // het STIL zijn: geluid uit de speaker verraadt waar de telefoon is.
+      const secretStage = ui.stepStage && ui.stepStage !== 'wake' && ui.stepStage !== 'rest';
+      if (secretStage) return null;
+      return step === 'wolf' && ui.stepStage !== 'rest' ? 'tense' : 'night';
+    }
     return 'night';
   }
   if (game.phase === 'day') return 'day';
@@ -585,10 +594,7 @@ function renderSettings() {
       <button class="btn primary" id="back">← Terug</button>
     </div>
   `);
-  $('#optSound').addEventListener('change', e => {
-    setSound(e.target.checked);
-    if (e.target.checked) { howlPlayed = false; tryHowl(); } // meteen even laten horen
-  });
+  $('#optSound').addEventListener('change', e => setSound(e.target.checked));
   $('#wipeStats').addEventListener('click', () => {
     if (!confirm('Alle statistieken op nul zetten? Spelers en avatars blijven bestaan.')) return;
     const stats = Store.get(KEYS.stats, {});
