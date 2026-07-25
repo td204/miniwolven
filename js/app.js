@@ -430,6 +430,17 @@ function renderDealDone() {
 
 /* ---------- nacht ---------- */
 
+/**
+ * Blijf een nacht-aankondiging herhalen (elke ~7 sec, steeds aandringender)
+ * tot de speler op de knop drukt — voor als iemand het door rumoer niet hoort.
+ * De herhaling stopt vanzelf: elke schermwissel ruimt de timers op.
+ */
+function speakNagging(first, variants) {
+  speak(first);
+  let i = 0;
+  every(7000, () => { speak(variants[i % variants.length]); i++; });
+}
+
 function nightTimerChip() {
   return game.settings.nightTimerSec ? `<div class="timer-chip" id="nightTimer"></div>` : '';
 }
@@ -526,7 +537,11 @@ function renderNightZiener() {
       </div>
     `, 'theme-night');
     bindMenu(); startNightTimerChip();
-    speak('Ziener, word wakker. Pak stilletjes de telefoon.');
+    speakNagging('Ziener, word wakker. Pak stilletjes de telefoon.', [
+      'Ziener! Hallo ziener! Word wakker.',
+      'Ziener, word wakker en pak de telefoon.',
+      'Slaap je, ziener? Wakker worden!',
+    ]);
     $('#me').addEventListener('click', () => { ui.stepStage = 'pick'; render(); });
     return;
   }
@@ -577,7 +592,12 @@ function renderNightWolf() {
       </div>
     `, 'theme-night');
     bindMenu(); startNightTimerChip();
-    speak(multi ? 'Weerwolven, word wakker.' : 'Weerwolf, word wakker.');
+    const wolfWord = multi ? 'Weerwolven' : 'Weerwolf';
+    speakNagging(`${wolfWord}, word wakker.`, [
+      `${wolfWord}! Hallo ${wolfWord.toLowerCase()}! Word wakker.`,
+      `${wolfWord}, word wakker!`,
+      `Hé ${wolfWord.toLowerCase()}! Opstaan, het is jachttijd.`,
+    ]);
     $('#me').addEventListener('click', () => {
       ui.stepStage = game.settings.deathMode === 'app' ? 'pick' : 'fysiek';
       render();
@@ -648,7 +668,11 @@ function renderNightHeks() {
       </div>
     `, 'theme-night');
     bindMenu(); startNightTimerChip();
-    speak('Heks, word wakker. Pak stilletjes de telefoon.');
+    speakNagging('Heks, word wakker. Pak stilletjes de telefoon.', [
+      'Heks! Hallo heks! Word wakker.',
+      'Heks, word wakker!',
+      'Heks, je drankjes staan te wachten!',
+    ]);
     $('#me').addEventListener('click', () => { ui.stepStage = 'act'; render(); });
     return;
   }
