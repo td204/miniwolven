@@ -18,6 +18,9 @@ const Store = {
 
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
+/** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
+const APP_VERSION = 9;
+
 /** Beschikbare avatars; de eerste rij mensjes zijn de standaardtoewijzing. */
 const AVATARS = ['👨', '👩', '👦', '👧', '👴', '👵', '🐺', '🐱', '🐶', '🐰', '🦊', '🐻', '🦁', '🐸', '🦄', '🐷'];
 
@@ -222,7 +225,7 @@ function renderHome() {
         <button class="btn half" id="rulesBtn">📖 Spelregels</button>
       </div>
     </div>
-    <p class="footer-note">Tip: installeer Miniwolven via ‘Zet op beginscherm’ in je browser.</p>
+    <p class="footer-note">Tip: installeer Miniwolven via ‘Zet op beginscherm’ in je browser.<br>Miniwolven v${APP_VERSION}</p>
   `);
   if (hasGame) {
     $('#resumeBtn').addEventListener('click', () => render());
