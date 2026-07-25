@@ -284,6 +284,16 @@ h2 { font-size: 1.35rem; }
   position: fixed; inset: 0; background: rgba(10,8,30,.7); z-index: 50;
   display: flex; align-items: flex-end; justify-content: center;
 }
+.overlay.center { align-items: center; padding: 24px; }
+.dialog {
+  background: var(--bg2); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 20px; padding: 22px 18px; width: 100%; max-width: 340px;
+  text-align: center; display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.5);
+}
+.dialog-emoji { font-size: 2.6rem; line-height: 1; }
+.dialog-text { margin: 0; }
+.btn.danger-solid { background: var(--danger); color: #2b0606; border: none; }
 .sheet {
   background: var(--bg2); border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
   width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 10px;

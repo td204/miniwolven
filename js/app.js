@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 17;
+const APP_VERSION = 18;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -513,6 +513,28 @@ function bindPlayerButtons(onPick) {
   $$('.player-pick').forEach(b => b.addEventListener('click', () => onPick(Number(b.dataset.id))));
 }
 
+/** Eigen bevestigingsdialoog in de stijl van de app (geen systeem-popup). */
+function confirmDialog(message, opts = {}) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay center';
+    overlay.innerHTML = `
+      <div class="dialog">
+        <div class="dialog-emoji">${opts.emoji || '🤔'}</div>
+        <p class="dialog-text">${message}</p>
+        <div class="row">
+          <button class="btn half" id="dlgCancel">${opts.cancel || 'Nee'}</button>
+          <button class="btn half ${opts.danger ? 'danger-solid' : 'primary'}" id="dlgOk">${opts.ok || 'Ja'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const done = v => { overlay.remove(); resolve(v); };
+    overlay.querySelector('#dlgOk').addEventListener('click', () => done(true));
+    overlay.querySelector('#dlgCancel').addEventListener('click', () => done(false));
+    overlay.addEventListener('click', e => { if (e.target === overlay) done(false); });
+  });
+}
+
 function header(title, showMenu) {
   const soundBtn = game ? `<button class="topbar-menu" id="soundBtn" aria-label="Geluid">${soundOn() ? '🔊' : '🔇'}</button>` : '';
   return `
@@ -573,7 +595,9 @@ function renderHome() {
   if (hasGame) {
     $('#resumeBtn').addEventListener('click', () => render());
     $('#discardBtn').addEventListener('click', () => {
-      if (confirm('Weet je zeker dat je het lopende spel weggooit?')) { clearGame(); renderHome(); }
+      confirmDialog('Weet je zeker dat je het lopende spel weggooit?',
+        { emoji: '🗑️', ok: 'Weggooien', cancel: 'Toch niet', danger: true })
+        .then(ok => { if (ok) { clearGame(); renderHome(); } });
     });
   }
   $('#newBtn').addEventListener('click', () => startSetup());
@@ -610,19 +634,27 @@ function renderSettings() {
   `);
   $('#optSound').addEventListener('change', e => setSound(e.target.checked));
   $('#wipeStats').addEventListener('click', () => {
-    if (!confirm('Alle statistieken op nul zetten? Spelers en avatars blijven bestaan.')) return;
-    const stats = Store.get(KEYS.stats, {});
-    for (const s of Object.values(stats)) {
-      s.games = 0; s.wins = 0; s.wolfGames = 0; s.guessesRight = 0; s.guessesTotal = 0;
-    }
-    Store.set(KEYS.stats, stats);
-    $('#wipeDone').textContent = '✅ Statistieken staan weer op nul.';
+    confirmDialog('Alle statistieken op nul zetten? Spelers en avatars blijven bestaan.',
+      { emoji: '🗑️', ok: 'Op nul zetten', cancel: 'Toch niet' })
+      .then(ok => {
+        if (!ok) return;
+        const stats = Store.get(KEYS.stats, {});
+        for (const s of Object.values(stats)) {
+          s.games = 0; s.wins = 0; s.wolfGames = 0; s.guessesRight = 0; s.guessesTotal = 0;
+        }
+        Store.set(KEYS.stats, stats);
+        $('#wipeDone').textContent = '✅ Statistieken staan weer op nul.';
+      });
   });
   $('#wipePlayers').addEventListener('click', () => {
-    if (!confirm('Alle bekende spelers, groepen en statistieken definitief wissen?')) return;
-    Store.del(KEYS.stats);
-    Store.del(KEYS.groups);
-    renderSettings();
+    confirmDialog('Alle bekende spelers, groepen en statistieken definitief wissen?',
+      { emoji: '🧹', ok: 'Alles wissen', cancel: 'Toch niet', danger: true })
+      .then(ok => {
+        if (!ok) return;
+        Store.del(KEYS.stats);
+        Store.del(KEYS.groups);
+        renderSettings();
+      });
   });
   $('#back').addEventListener('click', renderHome);
 }
@@ -1312,11 +1344,15 @@ function renderHunter() {
   bindMenu();
   bindPlayerButtons(id => {
     const t = Engine.player(game, id);
-    if (!confirm(`Zeker weten? ${t.name} gaat mee met de jager.`)) return;
-    Engine.hunterShoot(game, id); saveGame();
-    const r = Engine.ROLES[t.role];
-    ui = { shotResult: { name: t.name, avatar: av(t), role: r } };
-    render();
+    confirmDialog(`${av(t)} ${esc(t.name)} gaat mee met de jager. Zeker weten?`,
+      { emoji: '🏹', ok: 'Ja, schiet', cancel: 'Toch niet' })
+      .then(ok => {
+        if (!ok) return;
+        Engine.hunterShoot(game, id); saveGame();
+        const r = Engine.ROLES[t.role];
+        ui = { shotResult: { name: t.name, avatar: av(t), role: r } };
+        render();
+      });
   });
 }
 
@@ -1532,9 +1568,10 @@ function showMenu() {
   const mReview = $('#mReview');
   if (mReview) mReview.addEventListener('click', () => { close(); renderReview(); });
   $('#mQuit').addEventListener('click', () => {
-    if (confirm('Spel afbreken? De rollen worden dan niet onthuld en er worden geen scores geteld.')) {
-      close(); clearGame(); renderHome();
-    }
+    close();
+    confirmDialog('Spel afbreken? De rollen worden dan niet onthuld en er worden geen scores geteld.',
+      { emoji: '❌', ok: 'Afbreken', cancel: 'Doorspelen', danger: true })
+      .then(ok => { if (ok) { clearGame(); renderHome(); } });
   });
 }
 
@@ -1672,14 +1709,9 @@ window.addEventListener('popstate', () => {
   if (currentView === 'roles') { armBackTrap(); renderSetupPlayers(); return; }
   if (currentView === 'rules') { armBackTrap(); (rulesBack || renderHome)(); return; }
   if (['players', 'stats', 'settings'].includes(currentView)) { armBackTrap(); renderHome(); return; }
-  // startscherm of lopend spel
-  if (confirm('Miniwolven afsluiten?')) {
-    history.back();                                  // in een browser-tab: terug naar de vorige site
-    setTimeout(() => window.close(), 250);           // in de geïnstalleerde app: proberen te sluiten
-    setTimeout(() => armBackTrap(), 500);            // lukt sluiten niet, dan blijven we netjes staan
-  } else {
-    armBackTrap();
-  }
+  // Startscherm of lopend spel: terug kan nergens heen, dus doe stilletjes
+  // niets. Afsluiten gaat gewoon via de home-knop van het toestel.
+  armBackTrap();
 });
 
 document.addEventListener('DOMContentLoaded', () => {
