@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 25;
+const APP_VERSION = 26;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -281,16 +281,6 @@ const Ambient = {
     this.gain = null; this.sources = []; this.scene = null;
   },
   every(ms, fn) { this.timers.push(setInterval(fn, ms)); },
-  /** Volume tijdelijk dempen (1 = normaal), bijv. als de telefoon wordt opgepakt. */
-  duckTo(level) {
-    if (!audioCtx || !this.gain) return;
-    const t = audioCtx.currentTime;
-    try {
-      this.gain.gain.cancelScheduledValues(t);
-      this.gain.gain.setValueAtTime(this.gain.gain.value, t);
-      this.gain.gain.linearRampToValueAtTime(Math.max(0.0001, level), t + 0.25);
-    } catch {}
-  },
   set(scene) {
     // Naar stilte (geheim moment): snel uitfaden, anders verraadt de speaker
     // nog bijna een seconde lang waar de telefoon is.
@@ -472,8 +462,6 @@ const Motion = {
   },
   /** Vrij zeker: plat op tafel en muisstil. */
   isDown() { return this.active && this.flat && this.jitter < 0.25; },
-  /** Vrij zeker: wordt vastgehouden of bewogen. */
-  isHeld() { return this.active && this.jitter > 1.4; },
 };
 function initMotion() {
   if (Motion.started) return;
@@ -490,26 +478,6 @@ function initMotion() {
   } catch {}
 }
 window.addEventListener('pointerdown', initMotion, { once: true });
-
-// Waakhond: wordt de telefoon tijdens een nachtscène opgepakt terwijl er
-// geluid speelt? Dan dempen we, zodat de speaker de locatie niet verraadt.
-let motionDucked = false;
-setInterval(() => {
-  // Alleen in de rolscènes (ziener/wolf/heks): daar hoort de telefoon stil in
-  // het midden te liggen. Tijdens 'iedereen ogen dicht' en de ochtend wordt
-  // hij juist normaal vastgepakt en mag de stem niet worden afgekapt.
-  const inNight = game && currentView === 'game' && game.phase === 'night' && game.night
-    && ['ziener', 'wolf', 'heks'].includes(Engine.nightStep(game));
-  const shouldDuck = inNight && Motion.isHeld();
-  if (shouldDuck && !motionDucked) {
-    motionDucked = true;
-    Ambient.duckTo(0.1);
-    try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch {}
-  } else if (!shouldDuck && motionDucked) {
-    motionDucked = false;
-    Ambient.duckTo(1);
-  }
-}, 400);
 
 /** Welke sfeer past bij het scherm dat nu zichtbaar is? */
 function ambientScene() {
