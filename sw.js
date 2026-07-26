@@ -1,5 +1,5 @@
 /* Miniwolven service worker — app-shell caching zodat de app offline werkt. */
-const CACHE = 'miniwolven-v33';
+const CACHE = 'miniwolven-v34';
 const ASSETS = [
   './',
   './index.html',

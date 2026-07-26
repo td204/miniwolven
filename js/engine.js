@@ -344,7 +344,14 @@ const Engine = {
       if (teams.size === 2) return 'geliefden';
     }
     if (wolves === 0) return 'burgers';
-    if (wolves >= alive.length - wolves) return 'wolven';
+    if (wolves >= alive.length - wolves) {
+      // Gelijkspel is pas echt beslist als het dorp geen tegenzet meer heeft:
+      // een levende heks met gif kan 's nachts nog een wolf uitschakelen,
+      // buiten elke (stakende) stemming om.
+      const heksMetGif = alive.some(p => p.role === 'heks') && g.witch.poisonsLeft > 0;
+      if (wolves === alive.length - wolves && heksMetGif) return null;
+      return 'wolven';
+    }
     return null;
   },
 
