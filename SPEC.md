@@ -101,10 +101,14 @@ anders schakelen die drie de wolven te snel uit.
 - 🎩 **Spelleider-modus**, standaard uit: één niet-meespelende verteller bedient de
   app. Kaarten delen blijft zoals het is; de nacht wordt een reeks instructies
   ("Wek de ziener… wie wijst ze aan? … laat haar het antwoord zien"), zonder
-  doorgeef- en teruglegpauzes. De spelleider heeft in het menu een 📋
-  spelersoverzicht met alle rollen en statussen, inclusief correcties (alsnog dood
-  markeren met oorzaak, of weer levend maken) en een knop naar de onthulling zodra
-  het spel beslist is.
+  doorgeef- en teruglegpauzes. De **verteller-stem staat uit** (de spelleider
+  vertelt zelf) en de app doet **geen aftel- of drum-theater**: 's ochtends en bij
+  de finale toont ze de spelleider direct het overzicht (wie ging er dood en
+  waardoor, rollen zichtbaar), zodat die het zelf kan brengen. De **dagstemming is
+  een turf-scherm**: per speler − / + voor het aantal stemmen; wie op wie stemde
+  wordt niet vastgelegd. In het menu zit een 📋 spelersoverzicht met alle rollen en
+  statussen, inclusief correcties (alsnog dood markeren met oorzaak, of weer levend
+  maken) en een knop naar de onthulling zodra het spel beslist is.
 - 🤫 **Geheime hint** (variatie): één willekeurige niet-wolf krijgt op de rolkaart een
   hint: "de weerwolf is X of Y". Speelt er een kleuter mee, dan staat deze optie
   automatisch uit (een hint die je niet kunt lezen heeft geen zin, en voorlezen kan

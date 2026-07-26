@@ -99,6 +99,9 @@ h2 { font-size: 1.35rem; }
 .btn.big { padding: 18px 16px; font-size: 1.15rem; }
 .btn.subtle { background: transparent; border: none; color: var(--muted); font-weight: 500; }
 .btn.round { width: 56px; height: 56px; border-radius: 50%; font-size: 1.6rem; padding: 0; flex: none; }
+.btn.round.small { width: 40px; height: 40px; font-size: 1.2rem; }
+.tally-controls { display: flex; align-items: center; gap: 12px; }
+.tally-num { min-width: 1.4em; text-align: center; font-size: 1.15rem; }
 .btn:disabled { opacity: .4; }
 .btn.danger-btn { color: var(--danger); }
 .btn.half { display: inline-block; width: auto; flex: 1; }

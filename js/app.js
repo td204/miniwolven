@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 29;
+const APP_VERSION = 30;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -98,6 +98,7 @@ function recordStats(g) {
 
 function speak(text) {
   if (!game || !game.settings.voice) return;
+  if (game.settings.spelleider) return; // de spelleider vertelt zelf
   if (!('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
@@ -940,7 +941,9 @@ function renderSetupRoles() {
       </div>
 
       <div class="section-label">Opties</div>
-      <label class="opt"><input type="checkbox" id="optVoice" ${s.voice ? 'checked' : ''}> 🗣️ Verteller-stem (de app praat)</label>
+      ${s.spelleider
+        ? `<div class="pill">🗣️ Verteller-stem staat uit — de spelleider vertelt zelf</div>`
+        : `<label class="opt"><input type="checkbox" id="optVoice" ${s.voice ? 'checked' : ''}> 🗣️ Verteller-stem (de app praat)</label>`}
       <label class="opt"><input type="checkbox" id="optGuess" ${s.guessing ? 'checked' : ''}> 🕵️ Gok-ronde in de app (houdt scores bij)</label>
       <label class="opt"><input type="checkbox" id="optVote" ${s.dayVote ? 'checked' : ''}> 🔥 Dagstemming: brandstapel <small>· aanrader bij grote groepen; staken = niemand</small></label>
       <label class="opt"><input type="checkbox" id="optMishap" ${s.witchMishap ? 'checked' : ''}> ⚗️ Onvoorspelbare heks <small>· genees-drankje kan mislukken</small></label>
@@ -970,7 +973,8 @@ function renderSetupRoles() {
     if (b.dataset.lead) s.spelleider = b.dataset.lead === 'leider';
     renderSetupRoles();
   }));
-  $('#optVoice').addEventListener('change', e => s.voice = e.target.checked);
+  const optVoice = $('#optVoice');
+  if (optVoice) optVoice.addEventListener('change', e => s.voice = e.target.checked);
   $('#optGuess').addEventListener('change', e => s.guessing = e.target.checked);
   $('#optVote').addEventListener('change', e => { s.dayVote = e.target.checked; renderSetupRoles(); });
   $('#optMishap').addEventListener('change', e => s.witchMishap = e.target.checked);
@@ -1490,12 +1494,16 @@ function renderNightWake() {
   if (!ui.stepStage) ui.stepStage = 'open';
 
   if (ui.stepStage === 'open') {
+    const SL = game.settings.spelleider;
     screen(`
       ${header(`Nacht ${game.round}`, true)}
       <div class="center-stage">
         <div class="big-emoji">🌞</div>
-        <h2>Iedereen ogen open!</h2>
-        ${appMode
+        <h2>${SL ? 'De nacht is voorbij' : 'Iedereen ogen open!'}</h2>
+        ${SL
+          ? `<p class="muted">Wek het dorp en vertel zelf wat er is gebeurd — het overzicht komt zo in beeld.</p>
+             <button class="btn primary big" id="go">${appMode ? 'Toon het overzicht van de nacht' : 'Doorgeven wie is aangetikt'}</button>`
+          : appMode
           ? `<p class="muted">De app telt zo af en onthult wat er vannacht is gebeurd…</p>
              <button class="btn primary big" id="go">🥁 Start het aftellen</button>`
           : `<p class="muted">Wie is er vannacht aangetikt?</p>
@@ -1505,6 +1513,12 @@ function renderNightWake() {
     bindMenu();
     speak('De zon komt op. Iedereen mag de ogen weer openen.');
     $('#go').addEventListener('click', () => {
+      if (SL && appMode) {
+        // geen aftel-theater: de spelleider vertelt zelf, de app toont het overzicht
+        Engine.resolveNight(game, null); saveGame();
+        ui.stepStage = 'summary'; render();
+        return;
+      }
       ui.stepStage = appMode ? 'count' : 'whodied';
       if (appMode) ui.count = 5;
       render();
@@ -1564,7 +1578,8 @@ function renderNightSummary() {
 
   // Beslist deze nacht het spel? Dan blijven de rollen geheim tot de grote
   // onthulling — anders is alle spanning er al af ("Dex was de weerwolf").
-  const secretFinal = game.winner != null;
+  // In spelleider-modus kijkt alleen de spelleider mee: die mag alles zien.
+  const secretFinal = game.winner != null && !game.settings.spelleider;
 
   let lines = '';
   if (!deaths.length && !saved) lines = `<h2>😮‍💨 Niemand ging dood vannacht!</h2>`;
@@ -1711,6 +1726,7 @@ function renderShotResult() {
 
 function renderDay() {
   if (game.settings.guessing && !Engine.guessingDone(game) && ui.guessing) return renderGuessing();
+  if (ui.voting && game.settings.spelleider) return renderVoteTally();
   if (ui.voting && game.voteQueue) return renderVoting();
 
   const alive = Engine.alive(game);
@@ -1760,6 +1776,12 @@ function renderDay() {
   if (guessBtn) guessBtn.addEventListener('click', () => { ui.guessing = true; ui.guessStage = 'pass'; render(); });
   const voteBtn = $('#voteBtn');
   if (voteBtn) voteBtn.addEventListener('click', () => {
+    if (game.settings.spelleider) {
+      // spelleider turft zelf; wie op wie stemde wordt niet vastgelegd
+      ui.voting = true; ui.tally = {};
+      render();
+      return;
+    }
     Engine.startVote(game); saveGame();
     ui.voting = true; ui.voteStage = 'pass';
     render();
@@ -1854,9 +1876,56 @@ function renderVoting() {
   });
 }
 
+/** Spelleider-modus: de stemmen worden geturfd, niet per stemmer vastgelegd. */
+function renderVoteTally() {
+  const alive = Engine.alive(game);
+  if (!ui.tally) ui.tally = {};
+  const total = Object.values(ui.tally).reduce((a, b) => a + b, 0);
+  screen(`
+    ${header('Stemming turven 🔥', true)}
+    <div class="stack">
+      <p class="muted">Laat het dorp stemmen en turf per speler het aantal stemmen.
+      Wie op wie stemde wordt niet vastgelegd.</p>
+      ${alive.map(p => `
+        <div class="listrow">
+          <span>${av(p)} ${esc(p.name)}</span>
+          <span class="tally-controls">
+            <button class="btn round small" data-min="${p.id}">−</button>
+            <b class="tally-num">${ui.tally[p.id] || 0}</b>
+            <button class="btn round small" data-plus="${p.id}">+</button>
+          </span>
+        </div>`).join('')}
+      <div class="pill">${total} ${total === 1 ? 'stem' : 'stemmen'} geturfd</div>
+      <button class="btn primary big" id="tallyOk" ${total ? '' : 'disabled'}>🔥 Uitslag bepalen</button>
+      <button class="btn subtle" id="cancel">↩︎ Annuleren</button>
+    </div>
+  `);
+  bindMenu();
+  $$('[data-plus]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.plus;
+    ui.tally[id] = (ui.tally[id] || 0) + 1;
+    render();
+  }));
+  $$('[data-min]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.min;
+    ui.tally[id] = Math.max(0, (ui.tally[id] || 0) - 1);
+    render();
+  }));
+  $('#tallyOk').addEventListener('click', () => {
+    if (!total) return;
+    const counts = {};
+    for (const [id, n] of Object.entries(ui.tally)) if (n > 0) counts[id] = n;
+    Engine.resolveVoteCounts(game, counts); saveGame();
+    ui = { voteResult: true };
+    render();
+  });
+  $('#cancel').addEventListener('click', () => { ui.voting = false; ui.tally = null; render(); });
+}
+
 function renderVoteResult() {
   const v = game.lastVote;
-  const secret = game.winner != null; // stemming besliste het spel: rollen geheim
+  // stemming besliste het spel: rollen geheim (behalve voor de spelleider)
+  const secret = game.winner != null && !game.settings.spelleider;
   const rows = Object.entries(v.counts)
     .sort((a, b) => b[1] - a[1])
     .map(([id, n]) => {
@@ -1971,7 +2040,9 @@ function showRosterActions(id) {
 /* ---------- einde ---------- */
 
 function renderEnd() {
-  if (!ui.endStage) ui.endStage = game.statsRecorded ? 'reveal' : 'pre';
+  // Spelleider-modus: geen drum-theater van de app — de spelleider onthult
+  // zelf; de app toont direct het volledige overzicht.
+  if (!ui.endStage) ui.endStage = (game.statsRecorded || game.settings.spelleider) ? 'reveal' : 'pre';
 
   if (ui.endStage === 'pre') {
     screen(`

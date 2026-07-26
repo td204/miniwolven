@@ -353,11 +353,22 @@ const Engine = {
     return !g.voteQueue || g.voteQueue.index >= g.voteQueue.ids.length;
   },
 
-  /** Tel de stemmen: één slachtoffer bij een meerderheid, staken = niemand. */
+  /** Tel de stemmen uit de stemronde: één slachtoffer bij een meerderheid. */
   resolveVote(g) {
     const counts = {};
     for (const v of g.voteQueue.votes) counts[v.targetId] = (counts[v.targetId] || 0) + 1;
-    const max = Math.max(...Object.values(counts));
+    g.voteQueue = null;
+    return this._applyVoteCounts(g, counts);
+  },
+
+  /** Spelleider-modus: de uitslag komt als geturfde aantallen binnen. */
+  resolveVoteCounts(g, counts) {
+    return this._applyVoteCounts(g, counts);
+  },
+
+  _applyVoteCounts(g, counts) {
+    if (!Object.keys(counts).length) counts = {};
+    const max = Object.keys(counts).length ? Math.max(...Object.values(counts)) : 0;
     const top = Object.keys(counts).filter(id => counts[id] === max).map(Number);
     const tie = top.length !== 1;
     const deaths = [];
