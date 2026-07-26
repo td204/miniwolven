@@ -125,6 +125,11 @@ h2 { font-size: 1.35rem; }
 }
 .kleuter-btn { opacity: .45; }
 .kleuter-btn.on { opacity: 1; border-color: var(--accent); background: rgba(251,191,36,.12); }
+.clear-btn {
+  width: 40px; height: 52px; flex: none; border-radius: 12px; font-size: 1.1rem;
+  background: transparent; border: none; color: var(--muted); cursor: pointer; opacity: .6;
+}
+.player-pick.pp-dead { opacity: .6; }
 
 .avatar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .avatar-opt {

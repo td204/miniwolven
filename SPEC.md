@@ -24,7 +24,7 @@ offline en bewaart alles lokaal op het toestel (geen account, geen server).
 | 🐺 Weerwolf | wolven | Kiest elke nacht een slachtoffer. Bij meerdere wolven jagen ze samen en kennen ze elkaar. |
 | 🧑‍🌾 Burger | burgers | Geen krachten; let overdag op en gokt mee. |
 | 🔮 Ziener | burgers | Mag elke nacht één speler "doorzien": de app vertelt of die de wolf is. |
-| 🧪 Heks | burgers | Eén genees-drankje (redt het slachtoffer van die nacht) en één gif-drankje (doodt zelf iemand), elk éénmalig. |
+| 🧪 Heks | burgers | Genees-drankje (redt het slachtoffer van die nacht) en gif-drankje (doodt zelf iemand). Balans per groepsgrootte: vanaf 5 spelers 1× genezen + 1× gif; bij 3–4 spelers 2× genezen en géén gif (te sterk in een kleine groep). Zichzelf redden mag alleen met de allereerste genezing. |
 | 👧 Glurend meisje | burgers | Mag in het echt gluren (ogen op een kiertje) terwijl de wolf wakker is; wordt ze betrapt, dan pakt de wolf haar. Geen app-actie — de app legt de rol uit en herinnert eraan. |
 | 🏹 Jager | burgers | Gaat de jager dood, dan schiet die direct nog één speler mee het graf in (via de app). |
 
@@ -72,9 +72,12 @@ burger. Validatie: minstens 1 wolf, minstens 2 niet-wolven, wolven < helft van d
    de aangetikte te veel.
 6. **Herhaal** nacht + dag tot een team wint: burgers winnen zodra alle wolven dood
    zijn (heks-gif of jager!), wolven winnen zodra ze niet meer in de minderheid zijn
-   (bij 1 wolf: nog maar 2 spelers over).
-7. **De onthulling** — tromgeroffel, aftellen, dan: wie de wolf was, wie er won, alle
-   rollen, en de 🏆 **speurneus-scores** (wie gokte het vaakst goed).
+   (bij 1 wolf: nog maar 2 spelers over). **In de beslissende nacht blijven de
+   rollen van de doden geheim** (geen "Dex was de weerwolf" vóór de finale) en volgt
+   eerst nog een **laatste gok-ronde** — waarin ook op doden gegokt mag worden, want
+   de wolf kan al dood zijn.
+7. **De onthulling** — "Het is… het is…", drie paukenslagen, dan: wie de wolf was,
+   wie er won, alle rollen, en de 🏆 **speurneus-scores** (wie gokte het vaakst goed).
 
 ## 4. Opties per spel
 

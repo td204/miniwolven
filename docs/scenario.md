@@ -89,8 +89,10 @@ Elke rolbeurt heeft hetzelfde patroon:
    - *Wolf*: kiest een slachtoffer via avatar-tegels + bevestiging (app-modus)
      óf krijgt de instructie fysiek iemand aan te tikken (fysieke modus). Bij
      meerdere wolven staat alles in de jullie-vorm.
-   - *Heks*: ziet in app-modus wie is aangevallen; kan éénmalig genezen en/of
-     éénmalig vergiftigen (in fysieke modus "blind").
+   - *Heks*: ziet in app-modus wie is aangevallen. Drankjes per groepsgrootte:
+     vanaf 5 spelers 1× genezen + 1× gif; bij 3–4 spelers 2× genezen en géén
+     gif (te sterk in een kleine groep). Zichzelf redden mag alleen met de
+     allereerste genezing. In fysieke modus zet ze drankjes "blind" in.
 3. **Rustpauze in twee fasen**:
    - *Fase 1 (5 s, volledig stil, ook geen sfeer)*: "📵 Leg de telefoon terug —
      stil neerleggen in het midden." Ligt de telefoon volgens de
@@ -108,7 +110,9 @@ Elke rolbeurt heeft hetzelfde patroon:
   "niemand" → samenvatting (waar kan blijken dat de heks het slachtoffer
   redde: "…maar de heks heeft je gered! 💚").
 - De samenvatting toont en **spreekt** elke dode: *"{naam} is dood. {naam} was
-  {rol}."* — met avatar, rol en doodsoorzaak (wolf/gif/jager).
+  {rol}."* — met avatar, rol en doodsoorzaak (wolf/gif/jager). **Uitzondering:
+  beslist deze nacht het spel, dan blijven de rollen geheim** ("🤫 De rollen
+  blijven nog even geheim…") zodat de finale-onthulling zijn spanning houdt.
 - Sterft de **jager**, dan schiet die eerst terug: keuzescherm, eigen
   bevestigingsdialoog, extra dode met eigen onthulling.
 - Winstcontrole: burgers winnen zodra alle wolven dood zijn; wolven winnen
@@ -125,6 +129,10 @@ Elke rolbeurt heeft hetzelfde patroon:
   niet voor de score); doden alleen in app-modus — in fysieke modus weet de
   aangetikte te veel.
 - Daarna: "🌙 Start nacht {n+1}".
+- **Laatste ronde**: is het spel beslist, dan komt er geen nieuwe nacht maar
+  wél eerst een laatste gok-ronde ("Het spel is beslist… maar wie wás de
+  weerwolf?"). Daarin mag op iederéén gegokt worden — ook op doden, want de
+  wolf kan al dood zijn (heks-gif, jager). Daarna: "🥁 Naar de onthulling".
 
 ## 6. Einde en onthulling (Masked Singer-stijl)
 

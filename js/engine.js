@@ -102,9 +102,14 @@ const Engine = {
       players,
       round: 0,
       phase: 'deal',           // deal → dealDone → night → hunter? → day → night ... → end
+      finalRound: false,       // spel is beslist; nog één gok-ronde vóór de onthulling
       deal: { index: 0 },
       night: null,
-      witch: { healUsed: false, poisonUsed: false },
+      // Heks-balans: bij 3-4 spelers is gif te sterk; dan twee genezingen
+      // en geen gif. Zichzelf redden mag alleen met de allereerste genezing.
+      witch: cfg.names.length <= 4
+        ? { healsTotal: 2, healsLeft: 2, poisonsTotal: 0, poisonsLeft: 0, selfHealUsed: false }
+        : { healsTotal: 1, healsLeft: 1, poisonsTotal: 1, poisonsLeft: 1, selfHealUsed: false },
       lastNight: null,         // samenvatting van de afgelopen nacht voor de dag-fase
       guesses: [],             // {round, byId, suspectId}
       guessQueue: null,        // { ids:[..], index }
@@ -157,12 +162,13 @@ const Engine = {
   /* ---------- nacht ---------- */
 
   startNight(g) {
+    if (g.finalRound) return; // spel is al beslist
     g.round++;
     const steps = ['sleep'];
     if (g.players.some(p => p.alive && p.role === 'ziener')) steps.push('ziener');
     steps.push('wolf');
     const heks = g.players.find(p => p.alive && p.role === 'heks');
-    if (heks && (!g.witch.healUsed || !g.witch.poisonUsed)) steps.push('heks');
+    if (heks && (g.witch.healsLeft > 0 || g.witch.poisonsLeft > 0)) steps.push('heks');
     steps.push('wake');
     g.night = {
       steps, stepIndex: 0,
@@ -186,8 +192,13 @@ const Engine = {
 
   wolfPick(g, targetId) { g.night.wolfTarget = targetId; },
 
-  witchHeal(g) { g.night.witchHeal = true; g.witch.healUsed = true; },
-  witchPoison(g, targetId) { g.night.witchPoisonTarget = targetId; g.witch.poisonUsed = true; },
+  witchHeal(g) {
+    g.night.witchHeal = true;
+    g.witch.healsLeft--;
+    const heks = g.players.find(p => p.role === 'heks');
+    if (heks && g.night.wolfTarget === heks.id) g.witch.selfHealUsed = true;
+  },
+  witchPoison(g, targetId) { g.night.witchPoisonTarget = targetId; g.witch.poisonsLeft--; },
 
   /**
    * Verwerk de nacht tot doden. In fysieke modus geeft de host het aangetikte
@@ -233,17 +244,30 @@ const Engine = {
   },
 
   _afterDeaths(g) {
-    if (this.checkEnd(g)) return;
+    const winner = this.decideWinner(g);
+    if (winner) {
+      // Spel is beslist, maar de rollen blijven geheim: eerst nog één
+      // gok-ronde, dán pas de grote onthulling.
+      g.winner = winner;
+      if (g.settings.guessing) {
+        g.phase = 'day';
+        g.finalRound = true;
+        this._buildGuessQueue(g);
+        return;
+      }
+      g.phase = 'end';
+      return;
+    }
     g.phase = 'day';
     if (g.settings.guessing) this._buildGuessQueue(g);
   },
 
-  checkEnd(g) {
+  decideWinner(g) {
     const wolves = this.aliveWolves(g).length;
     const others = this.alive(g).length - wolves;
-    if (wolves === 0) { g.winner = 'burgers'; g.phase = 'end'; return true; }
-    if (wolves >= others) { g.winner = 'wolven'; g.phase = 'end'; return true; }
-    return false;
+    if (wolves === 0) return 'burgers';
+    if (wolves >= others) return 'wolven';
+    return null;
   },
 
   /* ---------- dag: gok-ronde ---------- */

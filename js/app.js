@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 26;
+const APP_VERSION = 27;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -542,6 +542,9 @@ function roleCardHTML(p, g) {
     const mates = Engine.fellowWolves(g, p.id);
     if (mates.length) extra += `<p class="card-extra">🐺 Je mede-wolf: <b>${mates.map(m => `${av(m)} ${esc(m.name)}`).join(' en ')}</b>. Jullie jagen samen.</p>`;
   }
+  if (p.role === 'heks' && g.players.length <= 4) {
+    extra += `<p class="card-extra">🧪 Kleine groep: je hebt twéé genees-drankjes en géén gif. Jezelf redden mag alleen met je allereerste drankje.</p>`;
+  }
   if (p.hint) extra += `<p class="card-hint">🤫 ${esc(p.hint)}</p>`;
   // Kleuter-modus: extra groot plaatje, geen leestekst — het beeld ís de rol.
   if (p.kleuter) {
@@ -586,9 +589,9 @@ function playerButtons(players) {
   // Grote aanwijs-tegels met avatar: ook een kleuter die nog niet kan lezen
   // herkent zo wie hij aanwijst.
   return `<div class="player-grid">${players.map(p => `
-    <button class="player-pick" data-id="${p.id}">
+    <button class="player-pick ${p.alive === false ? 'pp-dead' : ''}" data-id="${p.id}">
       <span class="pp-avatar">${av(p)}</span>
-      <span class="pp-name">${esc(p.name)}</span>
+      <span class="pp-name">${esc(p.name)}${p.alive === false ? ' 💀' : ''}</span>
     </button>`).join('')}</div>`;
 }
 function bindPlayerButtons(onPick) {
@@ -636,6 +639,14 @@ function bindMenu() {
 /* ---------- globale status ---------- */
 
 let game = Store.get(KEYS.game, null);
+// migratie: oudere opgeslagen spellen hadden nog healUsed/poisonUsed-vlaggen
+if (game && game.witch && game.witch.healsLeft === undefined) {
+  game.witch = {
+    healsTotal: 1, healsLeft: game.witch.healUsed ? 0 : 1,
+    poisonsTotal: 1, poisonsLeft: game.witch.poisonUsed ? 0 : 1,
+    selfHealUsed: false,
+  };
+}
 let setup = null;   // tijdelijke setup-status (namen, rollen, opties)
 let ui = {};        // vluchtige schermstatus (niet opgeslagen)
 let currentView = 'home'; // voor de terugknop: waar zijn we, en waar kan 'terug' heen?
@@ -781,6 +792,7 @@ function renderSetupPlayers() {
             <input class="input name-input" data-i="${i}" value="${esc(nm)}"
                    placeholder="Naam speler ${i + 1}" autocomplete="off" enterkeyhint="next">
             <button class="kleuter-btn ${setup.kleuters[i] ? 'on' : ''}" data-i="${i}" aria-label="Kleuter-modus">🧒</button>
+            <button class="clear-btn" data-i="${i}" aria-label="Regel leegmaken">🗑️</button>
           </div>`).join('')}
       </div>
       <p class="muted">Tik het plaatje voor een andere avatar. Zet 🧒 aan voor een kleuter
@@ -816,6 +828,15 @@ function renderSetupPlayers() {
     readNames();
     const i = Number(b.dataset.i);
     setup.kleuters[i] = !setup.kleuters[i];
+    renderSetupPlayers();
+  }));
+  // Prullenbakje: maakt alléén deze regel leeg (de speler blijft gewoon
+  // bewaard in het geheugen en de chips), zodat je iemand kunt wisselen.
+  $$('.clear-btn').forEach(b => b.addEventListener('click', () => {
+    readNames();
+    const i = Number(b.dataset.i);
+    setup.names[i] = '';
+    setup.kleuters[i] = false;
     renderSetupPlayers();
   }));
   $$('.chip').forEach(c => c.addEventListener('click', () => {
@@ -1308,10 +1329,27 @@ function renderNightHeks() {
     return;
   }
   // act-overzicht
-  const healAvail = !game.witch.healUsed;
-  const poisonAvail = !game.witch.poisonUsed;
+  const w = game.witch;
   const healed = game.night.witchHeal;
   const poisoned = game.night.witchPoisonTarget != null;
+  // Jezelf redden mag maar één keer, en alléén met de allereerste genezing.
+  const victimIsSelf = appMode && victim && victim.id === heks.id;
+  const selfBlocked = victimIsSelf && (w.selfHealUsed || w.healsLeft < w.healsTotal);
+  const canHeal = !healed && w.healsLeft > 0 && (victim || !appMode) && !selfBlocked;
+
+  let healRow;
+  if (healed) healRow = `<div class="pill ok">💚 Genees-drankje ingezet — het slachtoffer overleeft!</div>`;
+  else if (selfBlocked) healRow = `<div class="pill">💚 Jezelf redden mag alleen met je allereerste drankje</div>`;
+  else if (canHeal) healRow = `<button class="btn" id="heal">💚 Gebruik genees-drankje ${victim ? `voor ${av(victim)} ${esc(victim.name)}` : ''}${w.healsTotal > 1 ? ` <small>nog ${w.healsLeft} van ${w.healsTotal}</small>` : ''}</button>`;
+  else healRow = `<div class="pill">💚 Genees-drankjes zijn op</div>`;
+
+  let poisonRow = '';
+  if (w.poisonsTotal > 0) {
+    if (poisoned) poisonRow = `<div class="pill danger">☠️ Gif-drankje ingezet voor ${av(Engine.player(game, game.night.witchPoisonTarget))} ${esc(Engine.player(game, game.night.witchPoisonTarget).name)}</div>`;
+    else if (w.poisonsLeft > 0) poisonRow = `<button class="btn" id="poison">☠️ Gebruik gif-drankje…</button>`;
+    else poisonRow = `<div class="pill">☠️ Gif-drankje is al gebruikt</div>`;
+  }
+
   screen(`
     ${header('Heks', true)}
     <div class="stack night">
@@ -1320,12 +1358,8 @@ function renderNightHeks() {
         ? `<h2 class="center">Vannacht aangevallen:<br><span class="danger">${victim ? `${av(victim)} ${esc(victim.name)}` : 'niemand'}</span></h2>`
         : `<h2 class="center">Wil je een drankje gebruiken?</h2>
            <p class="muted center">Jij weet niet wie er is aangetikt — genezen werkt op het slachtoffer van vannacht, wie het ook is.</p>`}
-      ${healed ? `<div class="pill ok">💚 Genees-drankje ingezet — het slachtoffer overleeft!</div>`
-        : healAvail && (victim || !appMode) ? `<button class="btn" id="heal">💚 Gebruik genees-drankje ${victim ? `voor ${av(victim)} ${esc(victim.name)}` : ''}</button>`
-        : `<div class="pill">💚 Genees-drankje is al gebruikt</div>`}
-      ${poisoned ? `<div class="pill danger">☠️ Gif-drankje ingezet voor ${av(Engine.player(game, game.night.witchPoisonTarget))} ${esc(Engine.player(game, game.night.witchPoisonTarget).name)}</div>`
-        : poisonAvail ? `<button class="btn" id="poison">☠️ Gebruik gif-drankje…</button>`
-        : `<div class="pill">☠️ Gif-drankje is al gebruikt</div>`}
+      ${healRow}
+      ${poisonRow}
       <button class="btn primary big" id="done">Klaar · ogen dicht 😴</button>
     </div>
   `, 'theme-night');
@@ -1412,6 +1446,10 @@ function renderNightSummary() {
   const saved = ln.saved != null ? Engine.player(game, ln.saved) : null;
   const causeText = { wolf: 'gepakt door de weerwolf', gif: 'vergiftigd door de heks ☠️', jager: 'meegenomen door de jager 🏹' };
 
+  // Beslist deze nacht het spel? Dan blijven de rollen geheim tot de grote
+  // onthulling — anders is alle spanning er al af ("Dex was de weerwolf").
+  const secretFinal = game.winner != null;
+
   let lines = '';
   if (!deaths.length && !saved) lines = `<h2>😮‍💨 Niemand ging dood vannacht!</h2>`;
   if (saved) lines += `<div class="pill ok">💚 ${av(saved)} ${esc(saved.name)} werd aangevallen… maar de heks heeft ${esc(saved.name)} gered!</div>`;
@@ -1420,15 +1458,21 @@ function renderNightSummary() {
     lines += `
       <div class="death">
         <div class="death-name">💀 ${av(d.p)} ${esc(d.p.name)}</div>
-        <div class="death-role">${r.emoji} was ${r.naam} — ${causeText[d.cause]}</div>
+        <div class="death-role">${secretFinal ? causeText[d.cause] : `${r.emoji} was ${r.naam} — ${causeText[d.cause]}`}</div>
       </div>`;
   }
+  if (secretFinal) lines += `<p class="callout">🤫 De rollen blijven nog even geheim…</p>`;
 
   // Let op: speak() moet ná screen() — screen() kapt lopende spraak juist af.
   const texts = [];
   if (saved) texts.push(`${saved.name} werd gered door de heks.`);
-  for (const d of deaths) texts.push(`${d.p.name} is dood. ${d.p.name} was ${Engine.ROLES[d.p.role].naam}.`);
+  for (const d of deaths) {
+    texts.push(secretFinal
+      ? `${d.p.name} is dood.`
+      : `${d.p.name} is dood. ${d.p.name} was ${Engine.ROLES[d.p.role].naam}.`);
+  }
   if (!deaths.length && !saved) texts.push('Niemand ging dood vannacht.');
+  if (secretFinal) texts.push('De rollen blijven nog even geheim.');
 
   const hunter = game.hunterPending != null ? Engine.player(game, game.hunterPending) : null;
   screen(`
@@ -1481,13 +1525,15 @@ function renderShotResult() {
     <div class="center-stage">
       <div class="death">
         <div class="death-name">💀 ${s.avatar || ''} ${esc(s.name)}</div>
-        <div class="death-role">${s.role.emoji} was ${s.role.naam} — meegenomen door de jager 🏹</div>
+        <div class="death-role">${game.winner != null ? 'meegenomen door de jager 🏹' : `${s.role.emoji} was ${s.role.naam} — meegenomen door de jager 🏹`}</div>
       </div>
       <button class="btn primary big" id="go">Verder ☀️</button>
     </div>
   `);
   bindMenu();
-  speak(`${s.name} is neergeschoten door de jager. ${s.name} was ${s.role.naam}.`);
+  speak(game.winner != null
+    ? `${s.name} is neergeschoten door de jager.`
+    : `${s.name} is neergeschoten door de jager. ${s.name} was ${s.role.naam}.`);
   $('#go').addEventListener('click', () => { ui = {}; render(); });
 }
 
@@ -1499,21 +1545,26 @@ function renderDay() {
   const alive = Engine.alive(game);
   const done = Engine.guessingDone(game);
   const s = game.settings;
+  const finalR = !!game.finalRound; // spel is beslist: laatste gok, dan de onthulling
   screen(`
-    ${header(`Dag ${game.round}`, true)}
+    ${header(finalR ? 'De laatste gok!' : `Dag ${game.round}`, true)}
     <div class="stack">
-      <div class="big-emoji center">☀️</div>
-      <h2 class="center">Overleg maar eens goed…</h2>
-      <p class="muted center">Wie deed er verdacht? Wie lachte er zo raar? Nog in leven:
-      ${alive.map(p => `${av(p)} ${esc(p.name)}`).join(', ')}.</p>
-      ${s.dayTimerSec ? `
+      <div class="big-emoji center">${finalR ? '🌘' : '☀️'}</div>
+      <h2 class="center">${finalR ? 'Het spel is beslist…' : 'Overleg maar eens goed…'}</h2>
+      <p class="muted center">${finalR
+        ? 'Maar wie wás nou al die tijd de weerwolf? Iedereen doet nog één geheime gok — dán valt het doek.'
+        : `Wie deed er verdacht? Wie lachte er zo raar? Nog in leven:
+      ${alive.map(p => `${av(p)} ${esc(p.name)}`).join(', ')}.`}</p>
+      ${!finalR && s.dayTimerSec ? `
         <button class="btn" id="timerBtn">⏱️ Start ${Math.round(s.dayTimerSec / 60)} min overleg-timer</button>
         <div class="timer-big" id="dayTimer"></div>` : ''}
       ${s.guessing ? (done
         ? `<div class="pill ok">🕵️ Iedereen heeft zijn gok gedaan 🤫</div>`
-        : `<button class="btn primary big" id="guessBtn">🕵️ Start de gok-ronde <small>iedereen gokt in het geheim wie de wolf is</small></button>`)
+        : `<button class="btn primary big" id="guessBtn">🕵️ Start de ${finalR ? 'laatste gok-ronde' : 'gok-ronde'} <small>iedereen gokt in het geheim wie de wolf is</small></button>`)
         : ''}
-      ${(!s.guessing || done) ? `<button class="btn primary big" id="nightBtn">🌙 Start nacht ${game.round + 1}</button>` : ''}
+      ${finalR
+        ? (done ? `<button class="btn primary big" id="toReveal">🥁 Naar de onthulling</button>` : '')
+        : ((!s.guessing || done) ? `<button class="btn primary big" id="nightBtn">🌙 Start nacht ${game.round + 1}</button>` : '')}
     </div>
   `);
   bindMenu();
@@ -1534,6 +1585,10 @@ function renderDay() {
   const nightBtn = $('#nightBtn');
   if (nightBtn) nightBtn.addEventListener('click', () => {
     Engine.startNight(game); saveGame(); ui = {}; render();
+  });
+  const toReveal = $('#toReveal');
+  if (toReveal) toReveal.addEventListener('click', () => {
+    game.phase = 'end'; saveGame(); ui = {}; render();
   });
 }
 
@@ -1556,12 +1611,15 @@ function renderGuessing() {
     $('#me').addEventListener('click', () => { ui.guessStage = 'pick'; render(); });
     return;
   }
-  const options = Engine.alive(game).filter(p => p.id !== guesser.id);
+  // In de laatste ronde kan de wolf ook al dood zijn (heks-gif, jager),
+  // dus dan mag je op iederéén gokken — ook op de doden.
+  const pool = game.finalRound ? game.players : Engine.alive(game);
+  const options = pool.filter(p => p.id !== guesser.id);
   screen(`
     ${header(`Gok van ${esc(guesser.name)}`)}
     <div class="stack">
-      <h2>🕵️ Wie denk jij dat de weerwolf is?</h2>
-      <p class="muted">Je gok blijft geheim tot het einde van het spel.</p>
+      <h2>🕵️ Wie denk jij dat de weerwolf ${game.finalRound ? 'was' : 'is'}?</h2>
+      <p class="muted">${game.finalRound ? 'Je laatste gok — zo meteen valt het doek.' : 'Je gok blijft geheim tot het einde van het spel.'}</p>
       ${playerButtons(options)}
     </div>
   `);
