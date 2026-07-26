@@ -130,6 +130,8 @@ h2 { font-size: 1.35rem; }
   background: transparent; border: none; color: var(--muted); cursor: pointer; opacity: .6;
 }
 .player-pick.pp-dead { opacity: .6; }
+.player-pick.sel { border: 2px solid var(--accent); background: rgba(251,191,36,.1); }
+button.listrow { width: 100%; font: inherit; cursor: pointer; border: none; color: var(--text); text-align: left; }
 
 .avatar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .avatar-opt {
@@ -268,6 +270,7 @@ h2 { font-size: 1.35rem; }
 }
 .reveal-banner.wolves { background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.4); }
 .reveal-banner.village { background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.4); }
+.reveal-banner.lovers { background: rgba(244,114,182,.12); border: 1px solid rgba(244,114,182,.5); }
 
 .listrow {
   display: flex; justify-content: space-between; align-items: center;

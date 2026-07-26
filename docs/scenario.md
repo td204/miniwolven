@@ -76,7 +76,12 @@ overgeslagen. Sfeergeluid per stap staat in §8.
   dicht doen. Een stille teller (10 s) laat de nacht vanzelf beginnen; een
   discreet "verder ›" slaat de wachttijd over.
 
-### 4b. Rolbeurten (ziener → wolf → heks)
+### 4b. Rolbeurten (cupido¹ → ziener → wolf → heks)
+
+¹ Cupido alleen in de allereerste nacht: hij kiest twee geliefden via de
+tegels en tikt ze daarna zélf zachtjes aan zodat ze elkaar even zien.
+Sterft later de één, dan sterft de ander mee van liefdesverdriet; een
+wolf-burger-stel wint samen als laatste twee.
 
 Elke rolbeurt heeft hetzelfde patroon:
 
@@ -128,6 +133,11 @@ Elke rolbeurt heeft hetzelfde patroon:
   tot het einde. Wie gokt mee: levenden altijd (de wolf bluft mee maar telt
   niet voor de score); doden alleen in app-modus — in fysieke modus weet de
   aangetikte te veel.
+- **Dagstemming** (optie, standaard uit; aanrader bij grote groepen): na de
+  gok-ronde stemt iedereen geheim wie er op de brandstapel moet. Alleen een
+  meerderheid telt (staken = niemand); de uitslag toont de stemmen en de rol
+  van de verbrande — tenzij de stemming het spel beslist (rollen geheim) of de
+  🤪 dorpsgek getroffen wordt (die overleeft, maar mag nooit meer stemmen).
 - Daarna: "🌙 Start nacht {n+1}".
 - **Laatste ronde**: is het spel beslist, dan komt er geen nieuwe nacht maar
   wél eerst een laatste gok-ronde ("Het spel is beslist… maar wie wás de

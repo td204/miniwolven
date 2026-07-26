@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 28;
+const APP_VERSION = 29;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -36,6 +36,16 @@ function setSound(on) {
 const AVATARS = ['👨', '👩', '👦', '👧', '👴', '👵', '🐺', '🐱', '🐶', '🐰', '🦊', '🐻', '🦁', '🐸', '🦄', '🐷'];
 
 const av = p => p.avatar || '🙂';
+
+const CAUSE_TEXT = {
+  wolf: 'gepakt door de weerwolf',
+  gif: 'vergiftigd door de heks ☠️',
+  jager: 'meegenomen door de jager 🏹',
+  liefde: 'gestorven van liefdesverdriet 💔',
+  drankje: 'het genees-drankje was verkeerd gebrouwen ☠️',
+  stemming: 'door het dorp op de brandstapel gezet 🔥',
+  correctie: 'aangepast door de spelleider ✏️',
+};
 
 function saveGame() { if (game) Store.set(KEYS.game, game); }
 function clearGame() { game = null; Store.del(KEYS.game); }
@@ -68,7 +78,10 @@ function recordStats(g) {
     s.name = p.name;
     s.games++;
     const team = Engine.ROLES[p.role].team;
-    if (team === g.winner) s.wins++;
+    const won = g.winner === 'geliefden'
+      ? (g.lovers && g.lovers.includes(p.id))
+      : team === g.winner;
+    if (won) s.wins++;
     if (p.role === 'wolf') s.wolfGames++;
     const row = scores.find(r => r.id === p.id);
     if (row && !row.isWolf) { s.guessesRight += row.right; s.guessesTotal += row.total; }
@@ -475,7 +488,7 @@ function ambientScene() {
   if (game.phase === 'night') {
     const step = Engine.nightStep(game);
     if (step === 'wake') return ui.stepStage === 'count' ? 'tense' : 'dawn';
-    if (step === 'ziener' || step === 'wolf' || step === 'heks') {
+    if (step === 'ziener' || step === 'wolf' || step === 'heks' || step === 'cupido') {
       // Zodra de rol op 'ik ben wakker' drukt en de telefoon vastheeft, moet
       // het STIL zijn: geluid uit de speaker verraadt waar de telefoon is.
       // Dat geldt ook voor de stille teruglegfase van de rustpauze.
@@ -905,10 +918,20 @@ function renderSetupRoles() {
         <div class="counter-num">${setup.wolves} 🐺<small>${setup.wolves === 1 ? 'weerwolf' : 'weerwolven'}</small></div>
         <button class="btn round" id="wolfPlus">+</button>
       </div>
-      ${['ziener', 'heks', 'meisje', 'jager'].map(specialToggle).join('')}
+      ${['ziener', 'heks', 'meisje', 'jager', 'cupido', 'dorpsgek'].map(specialToggle).join('')}
       <div class="pill">${burgers >= 0 ? `+ ${burgers} 🧑‍🌾 ${burgers === 1 ? 'burger' : 'burgers'}` : ''}</div>
       <button class="btn subtle" id="autoBtn">✨ Aanbevolen samenstelling</button>
+      ${n >= 9 && ['ziener', 'heks', 'meisje'].every(r => setup.specials.includes(r)) && setup.wolves < 3
+        ? `<p class="callout">💡 Met ziener, heks én glurend meisje samen zijn <b>3 weerwolven</b> aan te raden bij ${n} spelers — anders schakelen die drie de wolven te snel uit.</p>` : ''}
+      ${setup.specials.includes('dorpsgek') && !s.dayVote
+        ? `<p class="callout">🤪 De dorpsgek doet pas iets als de <b>dagstemming</b> aanstaat (zie opties hieronder).</p>` : ''}
       <div class="error">${err ? esc(err) : ''}</div>
+
+      <div class="section-label">Wie leidt het spel?</div>
+      <div class="seg">
+        <button class="seg-opt ${!s.spelleider ? 'on' : ''}" data-lead="app">📱 De app<small>de telefoon gaat rond, de app vertelt</small></button>
+        <button class="seg-opt ${s.spelleider ? 'on' : ''}" data-lead="leider">🎩 Een spelleider<small>één verteller speelt niet mee en bedient de app</small></button>
+      </div>
 
       <div class="section-label">Hoe wordt het slachtoffer bekend?</div>
       <div class="seg">
@@ -919,6 +942,8 @@ function renderSetupRoles() {
       <div class="section-label">Opties</div>
       <label class="opt"><input type="checkbox" id="optVoice" ${s.voice ? 'checked' : ''}> 🗣️ Verteller-stem (de app praat)</label>
       <label class="opt"><input type="checkbox" id="optGuess" ${s.guessing ? 'checked' : ''}> 🕵️ Gok-ronde in de app (houdt scores bij)</label>
+      <label class="opt"><input type="checkbox" id="optVote" ${s.dayVote ? 'checked' : ''}> 🔥 Dagstemming: brandstapel <small>· aanrader bij grote groepen; staken = niemand</small></label>
+      <label class="opt"><input type="checkbox" id="optMishap" ${s.witchMishap ? 'checked' : ''}> ⚗️ Onvoorspelbare heks <small>· genees-drankje kan mislukken</small></label>
       ${setup.kleuters.some(Boolean)
         ? `<label class="opt disabled"><input type="checkbox" disabled> 🤫 Geheime hint <small>· uit: er speelt een kleuter mee, die kan de hint niet lezen</small></label>`
         : `<label class="opt"><input type="checkbox" id="optHint" ${s.hint ? 'checked' : ''}> 🤫 Variatie: één speler krijgt een geheime hint</label>`}
@@ -940,9 +965,15 @@ function renderSetupRoles() {
     renderSetupRoles();
   }));
   $('#autoBtn').addEventListener('click', () => { setup.wolves = null; setup.specials = null; renderSetupRoles(); });
-  $$('.seg-opt').forEach(b => b.addEventListener('click', () => { s.deathMode = b.dataset.mode; renderSetupRoles(); }));
+  $$('.seg-opt').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.mode) s.deathMode = b.dataset.mode;
+    if (b.dataset.lead) s.spelleider = b.dataset.lead === 'leider';
+    renderSetupRoles();
+  }));
   $('#optVoice').addEventListener('change', e => s.voice = e.target.checked);
   $('#optGuess').addEventListener('change', e => s.guessing = e.target.checked);
+  $('#optVote').addEventListener('change', e => { s.dayVote = e.target.checked; renderSetupRoles(); });
+  $('#optMishap').addEventListener('change', e => s.witchMishap = e.target.checked);
   const optHint = $('#optHint');
   if (optHint) optHint.addEventListener('change', e => s.hint = e.target.checked);
   $('#optDayTimer').addEventListener('change', e => s.dayTimerSec = Number(e.target.value));
@@ -1044,10 +1075,17 @@ function renderNight() {
   if (ui.stepStage === 'rest') return renderNightRest();
   const step = Engine.nightStep(game);
   if (step === 'sleep') return renderNightSleep();
+  if (step === 'cupido') return renderNightCupido();
   if (step === 'ziener') return renderNightZiener();
   if (step === 'wolf') return renderNightWolf();
   if (step === 'heks') return renderNightHeks();
   if (step === 'wake') return renderNightWake();
+}
+
+/** Herhaal-oproep; met spelleider volstaat één aankondiging (die port de rol zelf). */
+function nag(first, variants) {
+  if (game.settings.spelleider) { speak(first); return; }
+  speakNagging(first, variants);
 }
 
 function nightNext() {
@@ -1061,6 +1099,8 @@ function nightNext() {
  * wordt aangekondigd — anders verraadt de aankondiging wie er net bezig was.
  */
 function startRest(label) {
+  // Met een spelleider gaat de telefoon niet rond: geen teruglegpauze nodig.
+  if (game.settings.spelleider) { nightNext(); return; }
   ui.stepStage = 'rest';
   ui.restLabel = label;
   ui.restSpoken = false; // nachtsfeer pas aan als de stille teruglegfase voorbij is
@@ -1112,10 +1152,27 @@ function renderNightRest() {
 }
 
 function renderNightSleep() {
+  const meisje = game.players.find(p => p.alive && p.role === 'meisje');
+  // Met spelleider: die speelt niet mee en drukt gewoon zelf op de knop.
+  if (game.settings.spelleider) {
+    screen(`
+      ${header(`Nacht ${game.round}`, true)}
+      <div class="center-stage night">
+        <div class="big-emoji">🌙</div>
+        <h2>Iedereen ogen dicht!</h2>
+        ${meisje ? `<p class="callout">👧 Glurend meisje: straks, als de weerwolf wakker is, mag jij héél voorzichtig gluren. Op eigen risico!</p>` : ''}
+        <button class="btn primary big" id="skip">Iedereen slaapt → verder</button>
+      </div>
+    `, 'theme-night');
+    bindMenu();
+    speak(`Nacht ${game.round}. Iedereen doet zijn ogen dicht en gaat slapen.` +
+      (meisje ? ' Glurend meisje: jij mag straks alléén gluren wanneer de weerwolf wakker is.' : ''));
+    $('#skip').addEventListener('click', nightNext);
+    return;
+  }
   // Geen knop: wie de app bedient speelt zelf mee en moet ook de ogen dicht
   // doen. De nacht begint daarom vanzelf na een korte aftelling.
   const SLEEP_SECONDS = 10;
-  const meisje = game.players.find(p => p.alive && p.role === 'meisje');
   screen(`
     ${header(`Nacht ${game.round}`, true)}    <div class="center-stage night">
       <div class="big-emoji">🌙</div>
@@ -1140,7 +1197,76 @@ function renderNightSleep() {
   $('#skip').addEventListener('click', nightNext);
 }
 
+function renderNightCupido() {
+  const SL = game.settings.spelleider;
+  if (!ui.stepStage) ui.stepStage = 'wake';
+  if (!ui.cupidoSel) ui.cupidoSel = [];
+
+  if (ui.stepStage === 'wake') {
+    screen(`
+      ${header(`Nacht ${game.round} · cupido`, true)}
+      <div class="center-stage night">
+        <div class="big-emoji">💘</div>
+        <h2>${SL ? 'Wek cupido' : 'Cupido, word wakker'}</h2>
+        <p class="muted">${SL ? 'Alleen cupido doet de ogen open.' : 'Alleen cupido doet de ogen open en pakt stilletjes de telefoon.'}</p>
+        <button class="btn primary big" id="me">${SL ? 'Cupido is wakker ✋' : 'Ik ben cupido 💘'}</button>
+      </div>
+    `, 'theme-night');
+    bindMenu();
+    nag('Cupido, word wakker.', [
+      'Cupido! Hallo cupido! Word wakker.',
+      'Cupido, word wakker — de liefde wacht!',
+    ]);
+    $('#me').addEventListener('click', () => { ui.stepStage = 'pick'; render(); });
+    return;
+  }
+  if (ui.stepStage === 'pick') {
+    const sel = ui.cupidoSel;
+    screen(`
+      ${header('Cupido', true)}
+      <div class="stack night">
+        <h2>💘 ${SL ? 'Wie wijst cupido aan als geliefden?' : 'Kies twee geliefden'}</h2>
+        <p class="muted">Tik twee spelers aan${SL ? '' : ' — jijzelf mag ook'}.</p>
+        <div class="player-grid">${Engine.alive(game).map(p => `
+          <button class="player-pick ${sel.includes(p.id) ? 'sel' : ''}" data-id="${p.id}">
+            <span class="pp-avatar">${av(p)}</span>
+            <span class="pp-name">${esc(p.name)}</span>
+          </button>`).join('')}</div>
+        <button class="btn primary big" id="ok" ${sel.length === 2 ? '' : 'disabled'}>💘 Verbind deze harten</button>
+      </div>
+    `, 'theme-night');
+    bindMenu();
+    $$('.player-pick').forEach(b => b.addEventListener('click', () => {
+      const id = Number(b.dataset.id);
+      const i = sel.indexOf(id);
+      if (i >= 0) sel.splice(i, 1);
+      else { if (sel.length === 2) sel.shift(); sel.push(id); }
+      render();
+    }));
+    $('#ok').addEventListener('click', () => {
+      if (sel.length !== 2) return;
+      Engine.cupidoPick(game, sel[0], sel[1]); saveGame();
+      ui.stepStage = 'instruct'; render();
+    });
+    return;
+  }
+  // instruct: cupido tikt de geliefden aan zodat ze elkaar zien
+  screen(`
+    ${header('Cupido', true)}
+    <div class="center-stage night">
+      <div class="big-emoji">💘</div>
+      <h2>${SL ? 'Tik de geliefden aan' : 'Tik nu zélf je geliefden aan'}</h2>
+      <p class="muted">Héél zachtjes. Zij doen de ogen open, kijken elkaar even aan… en doen de ogen weer dicht.</p>
+      <button class="btn primary big" id="done">Klaar · ogen dicht 😴</button>
+    </div>
+  `, 'theme-night');
+  bindMenu();
+  speak('Geliefden, doe je ogen open en kijk elkaar aan. Jullie horen nu bij elkaar, in leven en in dood.');
+  $('#done').addEventListener('click', () => { ui.cupidoSel = null; startRest('Cupido'); });
+}
+
 function renderNightZiener() {
+  const SL = game.settings.spelleider;
   const ziener = game.players.find(p => p.alive && p.role === 'ziener');
   if (!ui.stepStage) ui.stepStage = 'wake';
 
@@ -1148,13 +1274,13 @@ function renderNightZiener() {
     screen(`
       ${header(`Nacht ${game.round} · ziener`, true)}      <div class="center-stage night">
         <div class="big-emoji">🔮</div>
-        <h2>Ziener, word wakker</h2>
-        <p class="muted">Alleen de ziener doet nu de ogen open en pakt stilletjes de telefoon.</p>
-        <button class="btn primary big" id="me">Ik ben de ziener 🔮</button>
+        <h2>${SL ? 'Wek de ziener' : 'Ziener, word wakker'}</h2>
+        <p class="muted">${SL ? 'Alleen de ziener doet de ogen open en wijst straks iemand aan.' : 'Alleen de ziener doet nu de ogen open en pakt stilletjes de telefoon.'}</p>
+        <button class="btn primary big" id="me">${SL ? 'De ziener is wakker ✋' : 'Ik ben de ziener 🔮'}</button>
       </div>
     `, 'theme-night');
     bindMenu();
-    speakNagging('Ziener, word wakker. Pak stilletjes de telefoon.', [
+    nag('Ziener, word wakker. Pak stilletjes de telefoon.', [
       'Ziener! Hallo ziener! Word wakker.',
       'Ziener, word wakker en pak de telefoon.',
       'Slaap je, ziener? Wakker worden!',
@@ -1167,7 +1293,7 @@ function renderNightZiener() {
     screen(`
       ${header('Ziener', true)}
       <div class="stack night">
-        <h2>🔮 Wie wil je doorzien?</h2>
+        <h2>🔮 ${SL ? 'Wie wijst de ziener aan?' : 'Wie wil je doorzien?'}</h2>
         ${playerButtons(options)}
       </div>
     `, 'theme-night');
@@ -1184,7 +1310,7 @@ function renderNightZiener() {
     <div class="center-stage night">
       <div class="big-emoji">${av(t)} ${ui.seerResult.isWolf ? '🐺' : '✅'}</div>
       <h2>${av(t)} ${esc(t.name)} is ${ui.seerResult.isWolf ? '<span class="danger">de WEERWOLF!</span>' : 'géén weerwolf'}</h2>
-      <p class="muted">Onthoud dit goed — en verklap het niet te snel.</p>
+      <p class="muted">${game.settings.spelleider ? 'Laat dit alléén aan de ziener zien.' : 'Onthoud dit goed — en verklap het niet te snel.'}</p>
       <button class="btn primary big" id="done">Klaar · ogen dicht 😴</button>
     </div>
   `, 'theme-night');
@@ -1203,22 +1329,22 @@ function renderNightWolf() {
     screen(`
       ${header(`Nacht ${game.round} · weerwolf`, true)}      <div class="center-stage night">
         <div class="big-emoji">🐺</div>
-        <h2>${multi ? 'Weerwolven, word wakker' : 'Weerwolf, word wakker'}</h2>
+        <h2>${game.settings.spelleider ? (multi ? 'Wek de weerwolven' : 'Wek de weerwolf') : (multi ? 'Weerwolven, word wakker' : 'Weerwolf, word wakker')}</h2>
         <p class="muted">${multi ? 'Alleen de weerwolven doen de ogen open.' : 'Alleen de weerwolf doet de ogen open.'}
-        ${game.settings.deathMode === 'app' ? ' Pak stilletjes de telefoon.' : ''}</p>
+        ${game.settings.spelleider ? ' Laat ze een slachtoffer aanwijzen.' : (game.settings.deathMode === 'app' ? ' Pak stilletjes de telefoon.' : '')}</p>
         ${meisje ? '<p class="callout">👧 Glurend meisje: nu mag jij héél voorzichtig gluren — op eigen risico!</p>' : ''}
-        <button class="btn primary big" id="me">${multi ? 'Wij zijn wakker' : 'Ik ben wakker'} 🐺</button>
+        <button class="btn primary big" id="me">${game.settings.spelleider ? (multi ? 'De wolven zijn wakker ✋' : 'De wolf is wakker ✋') : `${multi ? 'Wij zijn wakker' : 'Ik ben wakker'} 🐺`}</button>
       </div>
     `, 'theme-night');
     bindMenu();
     if (multi) {
-      speakNagging('Weerwolven, word wakker.' + glurenZin, [
+      nag('Weerwolven, word wakker.' + glurenZin, [
         'Weerwolven! Hallo weerwolven! Zijn jullie al wakker?',
         'Weerwolven, worden jullie eens wakker!',
         'Hé weerwolven! Opstaan, jullie moeten op jacht.',
       ]);
     } else {
-      speakNagging('Weerwolf, word wakker.' + glurenZin, [
+      nag('Weerwolf, word wakker.' + glurenZin, [
         'Weerwolf! Hallo weerwolf! Word wakker.',
         'Weerwolf, word wakker!',
         'Hé weerwolf! Opstaan, het is jachttijd.',
@@ -1249,7 +1375,7 @@ function renderNightWolf() {
     screen(`
       ${header(multi ? 'Weerwolven' : 'Weerwolf', true)}
       <div class="stack night">
-        <h2>🎯 ${multi ? 'Wie vallen jullie vannacht aan?' : 'Wie val je vannacht aan?'}</h2>
+        <h2>🎯 ${game.settings.spelleider ? (multi ? 'Wie wijzen de wolven aan?' : 'Wie wijst de wolf aan?') : (multi ? 'Wie vallen jullie vannacht aan?' : 'Wie val je vannacht aan?')}</h2>
         ${playerButtons(options)}
       </div>
     `, 'theme-night');
@@ -1287,13 +1413,13 @@ function renderNightHeks() {
     screen(`
       ${header(`Nacht ${game.round} · heks`, true)}      <div class="center-stage night">
         <div class="big-emoji">🧪</div>
-        <h2>Heks, word wakker</h2>
-        <p class="muted">Alleen de heks doet de ogen open en pakt stilletjes de telefoon.</p>
-        <button class="btn primary big" id="me">Ik ben de heks 🧪</button>
+        <h2>${game.settings.spelleider ? 'Wek de heks' : 'Heks, word wakker'}</h2>
+        <p class="muted">${game.settings.spelleider ? 'Alleen de heks doet de ogen open; vraag haar met gebaren om haar keuze.' : 'Alleen de heks doet de ogen open en pakt stilletjes de telefoon.'}</p>
+        <button class="btn primary big" id="me">${game.settings.spelleider ? 'De heks is wakker ✋' : 'Ik ben de heks 🧪'}</button>
       </div>
     `, 'theme-night');
     bindMenu();
-    speakNagging('Heks, word wakker. Pak stilletjes de telefoon.', [
+    nag('Heks, word wakker. Pak stilletjes de telefoon.', [
       'Heks! Hallo heks! Word wakker.',
       'Heks, word wakker!',
       'Heks, je drankjes staan te wachten!',
@@ -1432,7 +1558,9 @@ function renderNightSummary() {
   const ln = game.lastNight;
   const deaths = ln.deaths.map(d => ({ p: Engine.player(game, d.id), cause: d.cause }));
   const saved = ln.saved != null ? Engine.player(game, ln.saved) : null;
-  const causeText = { wolf: 'gepakt door de weerwolf', gif: 'vergiftigd door de heks ☠️', jager: 'meegenomen door de jager 🏹' };
+  const causeText = CAUSE_TEXT;
+  // onvoorspelbare heks: gered, maar het drankje kan iets veranderd hebben
+  const mishapCard = ln.mishap && ln.mishap !== 'dood' && saved && !ln.mishapShown;
 
   // Beslist deze nacht het spel? Dan blijven de rollen geheim tot de grote
   // onthulling — anders is alle spanning er al af ("Dex was de weerwolf").
@@ -1449,6 +1577,7 @@ function renderNightSummary() {
         <div class="death-role">${secretFinal ? causeText[d.cause] : `${r.emoji} was ${r.naam} — ${causeText[d.cause]}`}</div>
       </div>`;
   }
+  if (mishapCard) lines += `<p class="callout">⚗️ Maar het drankje van de heks borrelde wel héél verdacht… ${av(saved)} ${esc(saved.name)} moet zo even stiekem de eigen kaart bekijken!</p>`;
   if (secretFinal) lines += `<p class="callout">🤫 De rollen blijven nog even geheim…</p>`;
 
   // Let op: speak() moet ná screen() — screen() kapt lopende spraak juist af.
@@ -1460,6 +1589,7 @@ function renderNightSummary() {
       : `${d.p.name} is dood. ${d.p.name} was ${Engine.ROLES[d.p.role].naam}.`);
   }
   if (!deaths.length && !saved) texts.push('Niemand ging dood vannacht.');
+  if (mishapCard) texts.push(`Maar het drankje borrelde verdacht. ${saved.name}, bekijk zo stiekem je kaart.`);
   if (secretFinal) texts.push('De rollen blijven nog even geheim.');
 
   const hunter = game.hunterPending != null ? Engine.player(game, game.hunterPending) : null;
@@ -1475,6 +1605,58 @@ function renderNightSummary() {
   bindMenu();
   speak(texts.join(' '));
   $('#go').addEventListener('click', () => {
+    ui = {};
+    if (mishapCard) { ui.mishap = 'pass'; render(); return; }
+    if (game.hunterPending != null) ui.hunterActive = true;
+    render();
+  });
+}
+
+/** Onvoorspelbare heks: de geredde bekijkt stiekem zijn (mogelijk nieuwe) kaart. */
+function renderMishap() {
+  const ln = game.lastNight;
+  const p = Engine.player(game, ln.saved);
+
+  if (ui.mishap === 'pass') {
+    screen(`
+      ${header('Het drankje… ⚗️')}
+      <div class="center-stage">
+        <div class="big-emoji">${av(p)}</div>
+        <h2>Geef de telefoon aan<br><span class="accent">${av(p)} ${esc(p.name)}</span></h2>
+        <p class="muted">Alleen jij mag zien wat het drankje met je heeft gedaan…</p>
+        <button class="btn primary big" id="me">Ik ben ${av(p)} ${esc(p.name)} ✋</button>
+      </div>
+    `);
+    speak(`Geef de telefoon aan ${p.name}.`);
+    $('#me').addEventListener('click', () => { ui.mishap = 'card'; render(); });
+    return;
+  }
+
+  const outcome = {
+    ok: '😮‍💨 Niets aan de hand: het drankje werkte gewoon. Er is niets veranderd.',
+    burger: '⚗️ Verkeerd gebrouwen! Je bent veranderd in een gewone burger.',
+    wolf: '⚗️ Verkeerd gebrouwen! Je bent veranderd in een WEERWOLF — doe voortaan stiekem je ogen open met de wolven.',
+  }[ln.mishap];
+  screen(`
+    ${header(`Jouw kaart, ${esc(p.name)}`)}
+    <div class="center-stage">
+      <div class="cardwrap">
+        <div class="cardback" id="hold">
+          <div class="cardback-inner">⚗️<br><b>Houd ingedrukt</b><br><small>om te zien wat het drankje deed</small></div>
+        </div>
+        <div class="cardfront" id="card">
+          <div class="rolecard">
+            <p class="card-hint">${outcome}</p>
+            ${roleCardHTML(p, game)}
+          </div>
+        </div>
+      </div>
+      <button class="btn primary big" id="done" style="visibility:hidden">✅ Gezien — doorgeven</button>
+    </div>
+  `);
+  bindHoldReveal($('#hold'), $('#card'), () => { $('#done').style.visibility = 'visible'; });
+  $('#done').addEventListener('click', () => {
+    game.lastNight.mishapShown = true; saveGame();
     ui = {};
     if (game.hunterPending != null) ui.hunterActive = true;
     render();
@@ -1529,6 +1711,7 @@ function renderShotResult() {
 
 function renderDay() {
   if (game.settings.guessing && !Engine.guessingDone(game) && ui.guessing) return renderGuessing();
+  if (ui.voting && game.voteQueue) return renderVoting();
 
   const alive = Engine.alive(game);
   const done = Engine.guessingDone(game);
@@ -1550,9 +1733,14 @@ function renderDay() {
         ? `<div class="pill ok">🕵️ Iedereen heeft zijn gok gedaan 🤫</div>`
         : `<button class="btn primary big" id="guessBtn">🕵️ Start de ${finalR ? 'laatste gok-ronde' : 'gok-ronde'} <small>iedereen gokt in het geheim wie de wolf is</small></button>`)
         : ''}
+      ${!finalR && s.dayVote && (done || !s.guessing) && game.voteRound !== game.round
+        ? `<button class="btn primary big" id="voteBtn">🔥 Start de stemming <small>wie gaat er op de brandstapel?</small></button>` : ''}
+      ${!finalR && s.dayVote && game.voteRound === game.round
+        ? `<div class="pill">🔥 De stemming is geweest</div>` : ''}
       ${finalR
         ? (done ? `<button class="btn primary big" id="toReveal">🥁 Naar de onthulling</button>` : '')
-        : ((!s.guessing || done) ? `<button class="btn primary big" id="nightBtn">🌙 Start nacht ${game.round + 1}</button>` : '')}
+        : ((done || !s.guessing) && (!s.dayVote || game.voteRound === game.round)
+          ? `<button class="btn primary big" id="nightBtn">🌙 Start nacht ${game.round + 1}</button>` : '')}
     </div>
   `);
   bindMenu();
@@ -1570,6 +1758,12 @@ function renderDay() {
   });
   const guessBtn = $('#guessBtn');
   if (guessBtn) guessBtn.addEventListener('click', () => { ui.guessing = true; ui.guessStage = 'pass'; render(); });
+  const voteBtn = $('#voteBtn');
+  if (voteBtn) voteBtn.addEventListener('click', () => {
+    Engine.startVote(game); saveGame();
+    ui.voting = true; ui.voteStage = 'pass';
+    render();
+  });
   const nightBtn = $('#nightBtn');
   if (nightBtn) nightBtn.addEventListener('click', () => {
     Engine.startNight(game); saveGame(); ui = {}; render();
@@ -1615,6 +1809,162 @@ function renderGuessing() {
     Engine.recordGuess(game, id); saveGame();
     ui.guessStage = 'pass';
     render();
+  });
+}
+
+/* ---------- dagstemming: de brandstapel ---------- */
+
+function renderVoting() {
+  const voter = Engine.currentVoter(game);
+  if (!voter) { ui.voting = false; return renderDay(); }
+  if (!ui.voteStage) ui.voteStage = 'pass';
+
+  if (ui.voteStage === 'pass') {
+    screen(`
+      ${header(`Stemming · ${game.voteQueue.index + 1}/${game.voteQueue.ids.length}`)}
+      <div class="center-stage">
+        <div class="big-emoji">${av(voter)}</div>
+        <h2>Geef de telefoon aan<br><span class="accent">${av(voter)} ${esc(voter.name)}</span></h2>
+        <p class="muted">Stem in het geheim wie er op de brandstapel moet. 🔥</p>
+        <button class="btn primary big" id="me">Ik ben ${av(voter)} ${esc(voter.name)} ✋</button>
+      </div>
+    `);
+    speak(`Geef de telefoon aan ${voter.name}.`);
+    $('#me').addEventListener('click', () => { ui.voteStage = 'pick'; render(); });
+    return;
+  }
+  const options = Engine.alive(game).filter(p => p.id !== voter.id);
+  screen(`
+    ${header(`Stem van ${esc(voter.name)}`)}
+    <div class="stack">
+      <h2>🔥 Wie moet er op de brandstapel?</h2>
+      <p class="muted">Bij staken van de stemmen gaat er niemand.</p>
+      ${playerButtons(options)}
+    </div>
+  `);
+  bindPlayerButtons(id => {
+    Engine.recordVote(game, id); saveGame();
+    if (Engine.voteDone(game)) {
+      Engine.resolveVote(game); saveGame();
+      ui = { voteResult: true };
+    } else {
+      ui.voteStage = 'pass';
+    }
+    render();
+  });
+}
+
+function renderVoteResult() {
+  const v = game.lastVote;
+  const secret = game.winner != null; // stemming besliste het spel: rollen geheim
+  const rows = Object.entries(v.counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, n]) => {
+      const p = Engine.player(game, Number(id));
+      return `<div class="listrow"><span>${av(p)} ${esc(p.name)}</span><span class="muted">${n} ${n === 1 ? 'stem' : 'stemmen'}</span></div>`;
+    }).join('');
+
+  let outcome = '', speech = '';
+  if (v.tie) {
+    outcome = `<div class="pill">🤝 De stemmen staken — niemand gaat op de brandstapel.</div>`;
+    speech = 'De stemmen staken. Niemand gaat op de brandstapel.';
+  } else if (v.gekSaved) {
+    const p = Engine.player(game, v.lynchedId);
+    outcome = `<div class="pill ok">🤪 ${av(p)} ${esc(p.name)} blijkt de dorpsgek! Het dorp verbrandt geen dorpsgek — ${esc(p.name)} blijft leven, maar mag niet meer stemmen.</div>`;
+    speech = `${p.name} blijkt de dorpsgek. Het dorp verbrandt geen dorpsgek. ${p.name} blijft leven, maar mag niet meer stemmen.`;
+  } else {
+    for (const d of v.deaths) {
+      const p = Engine.player(game, d.id);
+      const r = Engine.ROLES[p.role];
+      outcome += `
+        <div class="death">
+          <div class="death-name">🔥 ${av(p)} ${esc(p.name)}</div>
+          <div class="death-role">${secret ? CAUSE_TEXT[d.cause] : `${r.emoji} was ${r.naam} — ${CAUSE_TEXT[d.cause]}`}</div>
+        </div>`;
+      speech += secret
+        ? `${p.name} is ${d.cause === 'liefde' ? 'gestorven van liefdesverdriet' : 'op de brandstapel gezet'}. `
+        : `${p.name} is ${d.cause === 'liefde' ? 'gestorven van liefdesverdriet' : 'op de brandstapel gezet'}. ${p.name} was ${r.naam}. `;
+    }
+    if (secret) outcome += `<p class="callout">🤫 De rollen blijven nog even geheim…</p>`;
+  }
+
+  const hunter = game.hunterPending != null ? Engine.player(game, game.hunterPending) : null;
+  screen(`
+    ${header('De stemming 🔥', true)}
+    <div class="stack">
+      <div class="section-label">De stemmen</div>
+      ${rows}
+      ${outcome}
+      ${hunter ? `<p class="callout">🏹 ${av(hunter)} ${esc(hunter.name)} was de jager en mag nog één keer schieten!</p>` : ''}
+      <button class="btn primary big" id="go">${hunter ? '🏹 Jager, kies je doelwit' : 'Verder'}</button>
+    </div>
+  `);
+  bindMenu();
+  speak(speech);
+  $('#go').addEventListener('click', () => {
+    ui = {};
+    if (game.hunterPending != null) ui.hunterActive = true;
+    render();
+  });
+}
+
+/* ---------- spelersoverzicht (spelleider) ---------- */
+
+function renderRoster() {
+  const w = game.phase !== 'end' ? Engine.decideWinner(game) : null;
+  screen(`
+    ${header('Spelersoverzicht 📋')}
+    <div class="stack">
+      <p class="muted">Alleen voor de spelleider-ogen! Tik een speler voor correcties.</p>
+      ${game.players.map(p => {
+        const r = Engine.ROLES[p.role];
+        const lover = game.lovers && game.lovers.includes(p.id) ? ' 💘' : '';
+        return `<button class="listrow roster-row ${p.alive ? '' : 'dead'}" data-id="${p.id}">
+          <span>${av(p)} ${esc(p.name)}${lover}</span>
+          <span class="muted">${r.emoji} ${r.naam} · ${p.alive ? '❤️' : `💀 ${CAUSE_TEXT[p.deathCause] || 'dood'}`}</span>
+        </button>`;
+      }).join('')}
+      ${w ? `<div class="pill ok">Het spel lijkt beslist!</div>
+             <button class="btn primary big" id="toEnd">🥁 Naar de onthulling</button>` : ''}
+      <button class="btn primary" id="back">← Terug naar het spel</button>
+    </div>
+  `);
+  $$('.roster-row').forEach(b => b.addEventListener('click', () => showRosterActions(Number(b.dataset.id))));
+  const toEnd = $('#toEnd');
+  if (toEnd) toEnd.addEventListener('click', () => {
+    game.winner = w; game.phase = 'end'; saveGame();
+    ui = {}; render();
+  });
+  $('#back').addEventListener('click', () => { ui.rosterOpen = false; render(); });
+}
+
+function showRosterActions(id) {
+  const p = Engine.player(game, id);
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.innerHTML = `
+    <div class="sheet">
+      <div class="section-label">${av(p)} ${esc(p.name)} — ${Engine.ROLES[p.role].emoji} ${Engine.ROLES[p.role].naam}</div>
+      ${p.alive ? `
+        <button class="btn" data-cause="wolf">🐺 Markeer dood: gepakt door de wolf</button>
+        <button class="btn" data-cause="gif">☠️ Markeer dood: vergiftigd</button>
+        <button class="btn" data-cause="stemming">🔥 Markeer dood: weggestemd</button>
+        <button class="btn" data-cause="jager">🏹 Markeer dood: door de jager</button>
+        <button class="btn" data-cause="correctie">✏️ Markeer dood: andere reden</button>`
+      : `<button class="btn" id="revive">💚 Weer levend maken</button>`}
+      <button class="btn subtle" id="rClose">Sluiten</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('#rClose').addEventListener('click', close);
+  overlay.querySelectorAll('[data-cause]').forEach(b => b.addEventListener('click', () => {
+    Engine.correctKill(game, id, b.dataset.cause); // geliefden sterven automatisch mee
+    saveGame(); close(); render();
+  }));
+  const rev = overlay.querySelector('#revive');
+  if (rev) rev.addEventListener('click', () => {
+    Engine.correctRevive(game, id); saveGame(); close(); render();
   });
 }
 
@@ -1671,17 +2021,20 @@ function renderEnd() {
   screen(`
     ${header('De onthulling')}
     <div class="stack">
-      <div class="reveal-banner ${wolvesWon ? 'wolves' : 'village'}">
-        <div class="big-emoji">${wolvesWon ? '🐺' : '🎉'}</div>
+      <div class="reveal-banner ${game.winner === 'geliefden' ? 'lovers' : wolvesWon ? 'wolves' : 'village'}">
+        <div class="big-emoji">${game.winner === 'geliefden' ? '💘' : wolvesWon ? '🐺' : '🎉'}</div>
         <h2>${wolves.map(w => `${av(w)} ${esc(w.name)}`).join(' en ')}<br>${wolves.length > 1 ? 'waren de weerwolven!' : 'was de weerwolf!'}</h2>
-        <div class="pill ${wolvesWon ? 'danger' : 'ok'}">${wolvesWon ? '🐺 De weerwolven winnen!' : '🎉 De burgers winnen!'}</div>
+        <div class="pill ${wolvesWon ? 'danger' : 'ok'}">${game.winner === 'geliefden'
+          ? `💘 ${game.lovers.map(id => esc(Engine.player(game, id).name)).join(' en ')} winnen als geliefden!`
+          : wolvesWon ? '🐺 De weerwolven winnen!' : '🎉 De burgers winnen!'}</div>
       </div>
 
       <div class="section-label">Alle rollen</div>
       ${game.players.map(p => {
         const r = Engine.ROLES[p.role];
+        const lover = game.lovers && game.lovers.includes(p.id) ? ' 💘' : '';
         return `<div class="listrow ${p.alive ? '' : 'dead'}">
-          <span>${av(p)} ${esc(p.name)}</span>
+          <span>${av(p)} ${esc(p.name)}${lover}</span>
           <span class="muted">${r.emoji} ${r.naam}${p.alive ? '' : ' · 💀'}</span></div>`;
       }).join('')}
 
@@ -1699,7 +2052,9 @@ function renderEnd() {
       <button class="btn" id="home">🏠 Naar het beginscherm</button>
     </div>
   `);
-  speak(`${wolves.map(w => w.name).join(' en ')} ${wolves.length > 1 ? 'waren de weerwolven' : 'was de weerwolf'}. De ${wolvesWon ? 'weerwolven' : 'burgers'} winnen!`);
+  speak(`${wolves.map(w => w.name).join(' en ')} ${wolves.length > 1 ? 'waren de weerwolven' : 'was de weerwolf'}. ${game.winner === 'geliefden'
+    ? `${game.lovers.map(id => Engine.player(game, id).name).join(' en ')} winnen als geliefden!`
+    : `De ${wolvesWon ? 'weerwolven' : 'burgers'} winnen!`}`);
   $('#again').addEventListener('click', () => {
     const names = game.players.map(p => p.name);
     const avatars = game.players.map(p => av(p));
@@ -1720,6 +2075,7 @@ function showMenu() {
   overlay.innerHTML = `
     <div class="sheet">
       <button class="btn" id="mRules">📖 Spelregels</button>
+      ${game.settings.spelleider ? '<button class="btn" id="mRoster">📋 Spelersoverzicht</button>' : ''}
       ${Engine.allSeen(game) ? '<button class="btn" id="mReview">🔎 Kaart terugkijken (noodknop)</button>' : ''}
       <button class="btn danger-btn" id="mQuit">❌ Spel afbreken</button>
       <button class="btn subtle" id="mClose">Sluiten</button>
@@ -1729,6 +2085,8 @@ function showMenu() {
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   $('#mClose').addEventListener('click', close);
   $('#mRules').addEventListener('click', () => { close(); renderRules(render); });
+  const mRoster = $('#mRoster');
+  if (mRoster) mRoster.addEventListener('click', () => { close(); ui.rosterOpen = true; render(); });
   const mReview = $('#mReview');
   if (mReview) mReview.addEventListener('click', () => { close(); renderReview(); });
   $('#mQuit').addEventListener('click', () => {
@@ -1846,6 +2204,9 @@ function render() {
   if (!game) return renderHome();
   currentView = 'game';
   if (ui.reviewStage) return renderReview();
+  if (ui.rosterOpen) return renderRoster();
+  if (ui.mishap) return renderMishap();
+  if (ui.voteResult) return renderVoteResult();
   if (ui.shotResult) return renderShotResult();
   if (game.hunterPending != null && ui.hunterActive) return renderHunter();
   // Ochtend-samenvatting eerst tonen: resolveNight zet de fase al op dag/einde,

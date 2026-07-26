@@ -27,11 +27,16 @@ offline en bewaart alles lokaal op het toestel (geen account, geen server).
 | 🧪 Heks | burgers | Genees-drankje (redt het slachtoffer van die nacht) en gif-drankje (doodt zelf iemand). Balans per groepsgrootte: vanaf 5 spelers 1× genezen + 1× gif; bij 3–4 spelers 2× genezen en géén gif (te sterk in een kleine groep). Zichzelf redden mag alleen met de allereerste genezing. |
 | 👧 Glurend meisje | burgers | Mag in het echt gluren (ogen op een kiertje) terwijl de wolf wakker is; wordt ze betrapt, dan pakt de wolf haar. Geen app-actie — de app legt de rol uit en herinnert eraan. |
 | 🏹 Jager | burgers | Gaat de jager dood, dan schiet die direct nog één speler mee het graf in (via de app). |
+| 💘 Cupido | burgers | Verbindt in de eerste nacht twee geliefden (en tikt ze zelf zachtjes aan zodat ze elkaar zien). Sterft de één, dan sterft de ander van verdriet. Wolf + burger als stel wint sámen als laatste twee. Standaard uit. |
+| 🤪 Dorpsgek | burgers | Wordt hij overdag weggestemd, dan wordt zijn kaart onthuld en blijft hij leven — maar stemmen mag hij niet meer. Werkt samen met de dagstemming. Standaard uit. |
 
 **Automatische samenstelling** (altijd handmatig aanpasbaar): 1 wolf t/m 6 spelers,
-2 wolven vanaf 7, 3 vanaf 12. Speciale rollen worden in deze volgorde toegevoegd
+2 wolven vanaf 7, 3 vanaf 9. Speciale rollen worden in deze volgorde toegevoegd
 zolang er spelers over zijn: ziener → heks → glurend meisje → jager; de rest wordt
-burger. Validatie: minstens 1 wolf, minstens 2 niet-wolven, wolven < helft van de groep.
+burger (cupido en dorpsgek staan standaard uit). Validatie: minstens 1 wolf,
+minstens 2 niet-wolven, wolven < helft van de groep. Extra tip in de app: spelen
+ziener, heks én glurend meisje samen bij 9+ spelers, dan raadt de app 3 wolven aan —
+anders schakelen die drie de wolven te snel uit.
 
 ## 3. Spelverloop (één telefoon, doorgeven)
 
@@ -85,6 +90,21 @@ burger. Validatie: minstens 1 wolf, minstens 2 niet-wolven, wolven < helft van d
 - 🗣️ **Verteller-stem**: de app spreekt de nachtinstructies en onthullingen uit
   (Web Speech API, nl-NL).
 - 🕵️ **Gok-ronde in de app** aan/uit (uit = gewoon hardop overleggen).
+- 🔥 **Dagstemming (brandstapel)**, standaard uit — aanrader bij grote groepen: na
+  het overleg stemt iedereen geheim; alleen bij een meerderheid gaat er iemand op de
+  brandstapel (staken = niemand), met rol-onthulling — behalve als de stemming het
+  spel beslist, dan blijven de rollen geheim tot de finale.
+- ⚗️ **Onvoorspelbare heks**, standaard uit: een genees-drankje kan mislukken —
+  70 % genezen, 15 % genezen maar veranderd in gewone burger, 10 % genezen maar
+  veranderd in weerwolf, 5 % alsnog dood. De geredde bekijkt 's ochtends stiekem
+  zijn (mogelijk nieuwe) kaart.
+- 🎩 **Spelleider-modus**, standaard uit: één niet-meespelende verteller bedient de
+  app. Kaarten delen blijft zoals het is; de nacht wordt een reeks instructies
+  ("Wek de ziener… wie wijst ze aan? … laat haar het antwoord zien"), zonder
+  doorgeef- en teruglegpauzes. De spelleider heeft in het menu een 📋
+  spelersoverzicht met alle rollen en statussen, inclusief correcties (alsnog dood
+  markeren met oorzaak, of weer levend maken) en een knop naar de onthulling zodra
+  het spel beslist is.
 - 🤫 **Geheime hint** (variatie): één willekeurige niet-wolf krijgt op de rolkaart een
   hint: "de weerwolf is X of Y". Speelt er een kleuter mee, dan staat deze optie
   automatisch uit (een hint die je niet kunt lezen heeft geen zin, en voorlezen kan

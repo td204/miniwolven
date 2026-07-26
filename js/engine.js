@@ -40,6 +40,16 @@ const ROLES = {
     kort: 'Als jij doodgaat, neem je iemand mee.',
     uitleg: 'Ga jij dood — door de weerwolf of door vergif — dan mag je meteen nog één keer schieten: kies een speler die met jou meegaat. Kies wijs!',
   },
+  cupido: {
+    id: 'cupido', naam: 'Cupido', emoji: '💘', team: 'burgers',
+    kort: 'Jij verbindt in de eerste nacht twee geliefden.',
+    uitleg: 'Alleen in de allereerste nacht word je wakker en kies je twee spelers die verliefd worden (jijzelf mag ook). Sterft de één, dan sterft de ander van verdriet. Zijn de geliefden wolf én burger, dan winnen ze alleen nog sámen: als laatste twee.',
+  },
+  dorpsgek: {
+    id: 'dorpsgek', naam: 'Dorpsgek', emoji: '🤪', team: 'burgers',
+    kort: 'Word jij weggestemd, dan blijf je leven.',
+    uitleg: 'Het dorp verbrandt geen dorpsgek: word jij overdag weggestemd, dan wordt je kaart onthuld en blijf je gewoon leven — maar meestemmen mag je daarna niet meer. Pas op: de weerwolf kan je ’s nachts nog wél opeten.',
+  },
 };
 
 /** Volgorde waarin extra rollen worden toegevoegd bij automatische samenstelling. */
@@ -49,9 +59,13 @@ const Engine = {
 
   ROLES,
 
-  /** Aanbevolen samenstelling voor n spelers. */
+  /**
+   * Aanbevolen samenstelling voor n spelers. Vanaf 9 spelers drie wolven:
+   * met ziener, heks én glurend meisje samen (die er dan automatisch in
+   * zitten) schakelen de burgers twee wolven anders te snel uit.
+   */
   autoComposition(n) {
-    const wolves = n >= 12 ? 3 : n >= 7 ? 2 : 1;
+    const wolves = n >= 9 ? 3 : n >= 7 ? 2 : 1;
     const specialSlots = Math.min(AUTO_SPECIALS.length, Math.max(1, n - wolves - 1));
     const specials = AUTO_SPECIALS.slice(0, specialSlots);
     return { wolves, specials };
@@ -97,6 +111,9 @@ const Engine = {
         voice: true,           // verteller-stem (spraak)
         hint: false,           // variatie: één speler krijgt een geheime hint
         guessing: true,        // gok-ronde in de app bijhouden
+        dayVote: false,        // dagstemming: iemand op de brandstapel (leuk bij grote groepen)
+        witchMishap: false,    // onvoorspelbare heks: genees-drankje kan mislukken
+        spelleider: false,     // spelleider-modus: één niet-meespelende verteller bedient de app
         dayTimerSec: 180,
       }, cfg.settings || {}),
       players,
@@ -113,7 +130,13 @@ const Engine = {
       lastNight: null,         // samenvatting van de afgelopen nacht voor de dag-fase
       guesses: [],             // {round, byId, suspectId}
       guessQueue: null,        // { ids:[..], index }
+      lovers: null,            // [idA, idB] zodra cupido gekozen heeft
+      gekRevealed: false,      // dorpsgek is al eens weggestemd (en dus onthuld)
+      voteQueue: null,         // { ids:[..], index, votes:[{byId,targetId}] }
+      lastVote: null,          // uitslag laatste dagstemming
+      voteRound: 0,            // ronde waarin voor het laatst gestemd is
       hunterPending: null,     // speler-id van gestorven jager die nog mag schieten
+      hunterContext: null,     // 'night' | 'vote' — waar de jager stierf
       reviews: [],             // noodknop-gebruik: {playerId, round}
       winner: null,            // 'wolven' | 'burgers'
       log: [],
@@ -165,6 +188,7 @@ const Engine = {
     if (g.finalRound) return; // spel is al beslist
     g.round++;
     const steps = ['sleep'];
+    if (g.round === 1 && !g.lovers && g.players.some(p => p.alive && p.role === 'cupido')) steps.push('cupido');
     if (g.players.some(p => p.alive && p.role === 'ziener')) steps.push('ziener');
     steps.push('wolf');
     const heks = g.players.find(p => p.alive && p.role === 'heks');
@@ -190,6 +214,8 @@ const Engine = {
     return this.player(g, targetId).role === 'wolf';
   },
 
+  cupidoPick(g, idA, idB) { g.lovers = [idA, idB]; },
+
   wolfPick(g, targetId) { g.night.wolfTarget = targetId; },
 
   witchHeal(g) {
@@ -212,35 +238,60 @@ const Engine = {
 
     const deaths = [];
     let saved = null;
+    let mishap = null; // 'ok' | 'burger' | 'wolf' | 'dood' (onvoorspelbare heks)
     if (target != null) {
-      if (n.witchHeal) saved = target;
-      else deaths.push({ id: target, cause: 'wolf' });
+      if (n.witchHeal) {
+        if (g.settings.witchMishap) {
+          const r = Math.random();
+          mishap = r < 0.70 ? 'ok' : r < 0.85 ? 'burger' : r < 0.95 ? 'wolf' : 'dood';
+        }
+        if (mishap === 'dood') {
+          this._kill(g, target, 'drankje', deaths);
+        } else {
+          saved = target;
+          const victim = this.player(g, target);
+          if (mishap === 'burger') victim.role = 'burger';
+          if (mishap === 'wolf') victim.role = 'wolf';
+        }
+      } else {
+        this._kill(g, target, 'wolf', deaths);
+      }
     }
     if (n.witchPoisonTarget != null && !deaths.some(d => d.id === n.witchPoisonTarget)) {
-      deaths.push({ id: n.witchPoisonTarget, cause: 'gif' });
+      this._kill(g, n.witchPoisonTarget, 'gif', deaths);
     }
-    for (const d of deaths) this._kill(g, d.id, d.cause);
     n.resolved = true;
-    g.lastNight = { round: g.round, deaths, saved };
+    g.lastNight = { round: g.round, deaths, saved, mishap };
     g.log.push({ round: g.round, deaths: deaths.map(d => d.id), saved });
 
     // Een gestorven jager mag eerst nog schieten voor we winst bepalen.
     const deadHunter = deaths.map(d => this.player(g, d.id)).find(p => p.role === 'jager');
-    if (deadHunter) { g.hunterPending = deadHunter.id; return; }
+    if (deadHunter) { g.hunterPending = deadHunter.id; g.hunterContext = 'night'; return; }
     this._afterDeaths(g);
   },
 
-  _kill(g, id, cause) {
+  /** Dood een speler; geliefden sterven mee van verdriet. Doden komen in `out`. */
+  _kill(g, id, cause, out) {
     const p = this.player(g, id);
     if (!p || !p.alive) return;
     p.alive = false; p.deathRound = g.round; p.deathCause = cause;
+    if (out) out.push({ id, cause });
+    if (g.lovers && g.lovers.includes(id)) {
+      const partner = g.lovers[0] === id ? g.lovers[1] : g.lovers[0];
+      this._kill(g, partner, 'liefde', out);
+    }
   },
 
   hunterShoot(g, targetId) {
-    this._kill(g, targetId, 'jager');
-    if (g.lastNight) g.lastNight.deaths.push({ id: targetId, cause: 'jager' });
+    const extra = [];
+    this._kill(g, targetId, 'jager', extra);
+    const record = g.hunterContext === 'vote' ? g.lastVote : g.lastNight;
+    if (record) record.deaths.push(...extra);
+    const ctx = g.hunterContext;
     g.hunterPending = null;
-    this._afterDeaths(g);
+    g.hunterContext = null;
+    if (ctx === 'vote') this._afterVoteDeaths(g);
+    else this._afterDeaths(g);
   },
 
   _afterDeaths(g) {
@@ -263,11 +314,92 @@ const Engine = {
   },
 
   decideWinner(g) {
+    const alive = this.alive(g);
     const wolves = this.aliveWolves(g).length;
-    const others = this.alive(g).length - wolves;
+    // Geliefden uit verschillende teams winnen samen als zij als laatste twee
+    // overblijven — dat gaat vóór de gewone teamwinst.
+    if (g.lovers && alive.length === 2 && alive.every(p => g.lovers.includes(p.id))) {
+      const teams = new Set(alive.map(p => p.role === 'wolf' ? 'wolven' : 'burgers'));
+      if (teams.size === 2) return 'geliefden';
+    }
     if (wolves === 0) return 'burgers';
-    if (wolves >= others) return 'wolven';
+    if (wolves >= alive.length - wolves) return 'wolven';
     return null;
+  },
+
+  /* ---------- dagstemming: de brandstapel ---------- */
+
+  startVote(g) {
+    // Levende spelers stemmen; een onthulde dorpsgek mag niet meer meestemmen.
+    const ids = this.alive(g)
+      .filter(p => !(p.role === 'dorpsgek' && g.gekRevealed))
+      .map(p => p.id);
+    g.voteQueue = { ids, index: 0, votes: [] };
+  },
+
+  currentVoter(g) {
+    const q = g.voteQueue;
+    if (!q || q.index >= q.ids.length) return null;
+    return this.player(g, q.ids[q.index]);
+  },
+
+  recordVote(g, targetId) {
+    const p = this.currentVoter(g);
+    g.voteQueue.votes.push({ byId: p.id, targetId });
+    g.voteQueue.index++;
+  },
+
+  voteDone(g) {
+    return !g.voteQueue || g.voteQueue.index >= g.voteQueue.ids.length;
+  },
+
+  /** Tel de stemmen: één slachtoffer bij een meerderheid, staken = niemand. */
+  resolveVote(g) {
+    const counts = {};
+    for (const v of g.voteQueue.votes) counts[v.targetId] = (counts[v.targetId] || 0) + 1;
+    const max = Math.max(...Object.values(counts));
+    const top = Object.keys(counts).filter(id => counts[id] === max).map(Number);
+    const tie = top.length !== 1;
+    const deaths = [];
+    let lynchedId = null, gekSaved = false;
+    if (!tie) {
+      lynchedId = top[0];
+      const t = this.player(g, lynchedId);
+      if (t.role === 'dorpsgek' && !g.gekRevealed) {
+        g.gekRevealed = true;  // het dorp verbrandt geen dorpsgek
+        gekSaved = true;
+      } else {
+        this._kill(g, lynchedId, 'stemming', deaths);
+      }
+    }
+    g.lastVote = { round: g.round, counts, lynchedId, tie, gekSaved, deaths };
+    g.voteQueue = null;
+    g.voteRound = g.round;
+
+    const deadHunter = deaths.map(d => this.player(g, d.id)).find(p => p.role === 'jager');
+    if (deadHunter) { g.hunterPending = deadHunter.id; g.hunterContext = 'vote'; return; }
+    this._afterVoteDeaths(g);
+  },
+
+  _afterVoteDeaths(g) {
+    // De gok-ronde van deze dag is al geweest, dus bij een beslissing gaan we
+    // rechtstreeks naar de onthulling (rollen blijven tot dan geheim).
+    const winner = this.decideWinner(g);
+    if (winner) { g.winner = winner; g.phase = 'end'; }
+  },
+
+  /* ---------- spelleider-correcties ---------- */
+
+  correctKill(g, id, cause) {
+    const out = [];
+    this._kill(g, id, cause || 'correctie', out);
+    return out;
+  },
+
+  correctRevive(g, id) {
+    const p = this.player(g, id);
+    if (!p) return;
+    p.alive = true; p.deathRound = null; p.deathCause = null;
   },
 
   /* ---------- dag: gok-ronde ---------- */
