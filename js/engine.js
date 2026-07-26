@@ -158,6 +158,20 @@ const Engine = {
   },
 
   alive(g) { return g.players.filter(p => p.alive); },
+
+  /**
+   * Telling van rollen die nog in het spel zijn, op basis van wat het dorp
+   * publiek wéét: wie stiekem veranderd is (onvoorspelbare heks) telt mee
+   * onder zijn oude rol.
+   */
+  aliveRoleCounts(g) {
+    const counts = {};
+    for (const p of this.alive(g)) {
+      const role = p.origRole || p.role;
+      counts[role] = (counts[role] || 0) + 1;
+    }
+    return counts;
+  },
   aliveWolves(g) { return g.players.filter(p => p.alive && p.role === 'wolf'); },
   wolves(g) { return g.players.filter(p => p.role === 'wolf'); },
   player(g, id) { return g.players.find(p => p.id === id); },
@@ -253,8 +267,12 @@ const Engine = {
         } else {
           saved = target;
           const victim = this.player(g, target);
-          if (mishap === 'burger') victim.role = 'burger';
-          if (mishap === 'wolf') victim.role = 'wolf';
+          if (mishap === 'burger' || mishap === 'wolf') {
+            // Onthoud de publieke identiteit: het dorp weet niets van de
+            // verandering, dus tellingen mogen die niet verklappen.
+            victim.origRole = victim.role;
+            victim.role = mishap === 'burger' ? 'burger' : 'wolf';
+          }
         }
       } else {
         this._kill(g, target, 'wolf', deaths);

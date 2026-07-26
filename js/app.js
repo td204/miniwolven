@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 32;
+const APP_VERSION = 33;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -1430,7 +1430,10 @@ function renderNightWolf() {
 function renderNightHeks() {
   const heks = game.players.find(p => p.alive && p.role === 'heks');
   // Spelleider zonder drankjes: alleen een geheugensteuntje, geen keuzes.
-  if (game.settings.spelleider && game.witch.healsLeft <= 0 && game.witch.poisonsLeft <= 0) {
+  // Alleen als er deze nacht ook níets is ingezet — direct na het laatste
+  // drankje hoort gewoon het normale heks-scherm te blijven staan.
+  if (game.settings.spelleider && game.witch.healsLeft <= 0 && game.witch.poisonsLeft <= 0
+      && !game.night.witchHeal && game.night.witchPoisonTarget == null) {
     screen(`
       ${header(`Nacht ${game.round} · heks`, true)}
       <div class="center-stage night">
@@ -1773,6 +1776,10 @@ function renderDay() {
     <div class="stack">
       <div class="big-emoji center">${finalR ? '🌘' : '☀️'}</div>
       <h2 class="center">${finalR ? 'Het spel is beslist…' : 'Overleg maar eens goed…'}</h2>
+      ${finalR ? '' : `<div class="pill">${Object.entries(Engine.aliveRoleCounts(game))
+        .sort((a, b) => (a[0] === 'wolf' ? -1 : b[0] === 'wolf' ? 1 : 0))
+        .map(([role, n]) => `${n}× ${Engine.ROLES[role].emoji} ${Engine.ROLES[role].naam.toLowerCase()}`)
+        .join(' · ')}</div>`}
       <p class="muted center">${finalR
         ? 'Maar wie wás nou al die tijd de weerwolf? Iedereen doet nog één geheime gok — dán valt het doek.'
         : `Wie deed er verdacht? Wie lachte er zo raar? Nog in leven:
