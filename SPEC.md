@@ -77,13 +77,15 @@ anders schakelen die drie de wolven te snel uit.
    de aangetikte te veel.
 6. **Herhaal** nacht + dag tot een team wint: burgers winnen zodra alle wolven dood
    zijn (heks-gif of jager!), wolven winnen zodra ze niet meer in de minderheid zijn
-   (bij 1 wolf: nog maar 2 spelers over). Bij exact gelijke aantallen is het spel
-   wiskundig beslist — stemmen staakt, en 's nachts pakken de wolven er één — met
-   twee uitzonderingen waarin het dorp nog een tegenzet heeft en het spel dus
-   doorspeelt: een levende heks die haar gif nog heeft (schakelt buiten de
-   stemming om een wolf uit), en een levende jager (de wolven weten niet wie dat
-   is; pakken ze hem, dan schiet hij terug — en via ruil na ruil kan de laatste
-   wolf alsnog vallen). **In de beslissende nacht blijven de
+   (bij 1 wolf: nog maar 2 spelers over). Het spel stopt pas als de uitkomst uit
+   publieke informatie herleidbaar vaststaat, en dat hangt af van de opties:
+   **mét dagstemming** kan het dorp bij gelijkspel nog altijd een wolf op de
+   brandstapel krijgen, dus winnen de wolven pas bij een echte meerderheid — en
+   zelfs dan speelt het door zolang de heks met genees- én gif-drankje een
+   voorsprong van precies één nog kan dichten. **Zonder dagstemming** is
+   gelijkspel beslist (elke confrontatie staakt, 's nachts pakken de wolven
+   door), tenzij het dorp een tegenzet heeft: een heks met gif, of een levende
+   jager (de wolven weten niet wie dat is; pakken ze hem, dan schiet hij terug). **In de beslissende nacht blijven de
    rollen van de doden geheim** (geen "Dex was de weerwolf" vóór de finale) en volgt
    eerst nog een **laatste gok-ronde** — waarin ook op doden gegokt mag worden, want
    de wolf kan al dood zijn.

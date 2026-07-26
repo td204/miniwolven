@@ -344,14 +344,34 @@ const Engine = {
       if (teams.size === 2) return 'geliefden';
     }
     if (wolves === 0) return 'burgers';
-    if (wolves >= alive.length - wolves) {
-      // Gelijkspel is pas echt beslist als het dorp geen tegenzet meer heeft:
-      // een levende heks met gif kan 's nachts een wolf uitschakelen, en een
-      // levende jager schiet terug als de wolven hem (onwetend) pakken — via
-      // ruil na ruil kan de laatste wolf alsnog vallen.
-      const heksMetGif = alive.some(p => p.role === 'heks') && g.witch.poisonsLeft > 0;
-      const jagerLeeft = alive.some(p => p.role === 'jager');
-      if (wolves === alive.length - wolves && (heksMetGif || jagerLeeft)) return null;
+    const others = alive.length - wolves;
+    if (others === 0) return 'wolven';
+
+    const heksLeeft = alive.some(p => p.role === 'heks');
+    const gif = heksLeeft && g.witch.poisonsLeft > 0;
+    const heal = heksLeeft && g.witch.healsLeft > 0;
+    const jagerLeeft = alive.some(p => p.role === 'jager');
+
+    if (g.settings.dayVote) {
+      // Mét dagstemming kan het dorp bij gelijkspel nog altijd een wolf op de
+      // brandstapel krijgen — dus pas beslist als de wolven in de meerderheid
+      // zijn. En zelfs dan: heeft de heks nog genees- én gif-drankje, dan kan
+      // ze een voorsprong van precies één in één nacht dichten (slachtoffer
+      // redden + wolf vergiftigen). De jager kan hooguit ruilen en de
+      // meerderheid dus niet breken.
+      if (wolves > others) {
+        if (wolves - others === 1 && gif && heal) return null;
+        return 'wolven';
+      }
+      return null;
+    }
+
+    // Zonder dagstemming: bij gelijkspel staakt elke confrontatie en pakken
+    // de wolven 's nachts door — beslist, tenzij het dorp een tegenzet heeft:
+    // een heks met gif, of een jager (de wolven weten niet wie dat is; pakken
+    // ze hem, dan schiet hij terug en kan de laatste wolf alsnog vallen).
+    if (wolves >= others) {
+      if (wolves === others && (gif || jagerLeeft)) return null;
       return 'wolven';
     }
     return null;
