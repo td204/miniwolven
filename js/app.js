@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 27;
+const APP_VERSION = 28;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -376,22 +376,10 @@ function ambHeartbeat(ctx, out, amb) {
   };
   amb.every(1100, () => { const t = ctx.currentTime; thump(t, 0.05); thump(t + 0.22, 0.03); });
 }
-function ambPad(ctx, out, amb) {
-  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 480;
-  const g = ctx.createGain(); g.gain.value = 0.016;
-  const trem = ctx.createOscillator(); trem.frequency.value = 0.13;
-  const tremG = ctx.createGain(); tremG.gain.value = 0.008;
-  trem.connect(tremG).connect(g.gain);
-  for (const fr of [110, 164.8]) {
-    const o = ctx.createOscillator(); o.frequency.value = fr;
-    o.connect(f); o.start(); amb.sources.push(o);
-  }
-  f.connect(g).connect(out);
-  trem.start(); amb.sources.push(trem);
-}
-
 const AMBIENT_SCENES = {
-  deal:  (ctx, g, amb) => { ambWind(ctx, g, amb, 250, 0.015); ambPad(ctx, g, amb); },
+  // alleen wind: doorlopende lage tonen klinken op een telefoonspeaker al
+  // snel als een bromtoon in plaats van sfeer
+  deal:  (ctx, g, amb) => { ambWind(ctx, g, amb, 320, 0.022); },
   night: (ctx, g, amb) => { ambWind(ctx, g, amb, 280, 0.02); ambCrickets(ctx, g, amb); },
   tense: (ctx, g, amb) => { ambWind(ctx, g, amb, 200, 0.012); ambDrone(ctx, g, amb); ambHeartbeat(ctx, g, amb); },
   dawn:  (ctx, g, amb) => { ambWind(ctx, g, amb, 400, 0.014); ambBirds(ctx, g, amb, 0.55); },
