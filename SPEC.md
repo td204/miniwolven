@@ -82,7 +82,9 @@ anders schakelen die drie de wolven te snel uit.
    **mét dagstemming** staat níets tussentijds vast — elke stemming kan een wolf
    treffen, want in het gedrang stemmen wolven zelfs op elkaar — dus daar eindigt
    het spel pas als er geen burger meer over is (wolven winnen) of geen wolf
-   (burgers winnen). **Zonder dagstemming** is gelijkspel beslist (elke
+   (burgers winnen). Eén uitzondering: een 1-tegen-1 is wél klaar (die stemming
+   staakt gegarandeerd en 's nachts valt de laatste burger), tenzij die laatste
+   burger de jager is of een heks met gif. **Zonder dagstemming** is gelijkspel beslist (elke
    confrontatie staakt, 's nachts pakken de wolven door), tenzij het dorp een
    tegenzet heeft: een heks met gif, of een levende jager (de wolven weten niet
    wie dat is; pakken ze hem, dan schiet hij terug). **In de beslissende nacht blijven de

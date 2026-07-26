@@ -354,9 +354,11 @@ const Engine = {
 
     if (g.settings.dayVote) {
       // Mét dagstemming staat níets tussentijds vast: elke stemming kan een
-      // wolf treffen — in het gedrang stemmen wolven zelfs op elkaar. Het
-      // spel eindigt dus pas als er geen burger meer over is (of geen wolf);
-      // die twee gevallen zijn hierboven al afgehandeld.
+      // wolf treffen — in het gedrang stemmen wolven zelfs op elkaar. Eén
+      // uitzondering: een 1-tegen-1 is wél klaar, want die stemming staakt
+      // gegarandeerd en 's nachts pakt de wolf de laatste burger — tenzij
+      // die laatste nog een tegenzet is (jager, of heks met gif).
+      if (alive.length === 2 && !(gif || jagerLeeft)) return 'wolven';
       return null;
     }
 
