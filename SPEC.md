@@ -79,13 +79,13 @@ anders schakelen die drie de wolven te snel uit.
    zijn (heks-gif of jager!), wolven winnen zodra ze niet meer in de minderheid zijn
    (bij 1 wolf: nog maar 2 spelers over). Het spel stopt pas als de uitkomst uit
    publieke informatie herleidbaar vaststaat, en dat hangt af van de opties:
-   **mét dagstemming** kan het dorp bij gelijkspel nog altijd een wolf op de
-   brandstapel krijgen, dus winnen de wolven pas bij een echte meerderheid — en
-   zelfs dan speelt het door zolang de heks met genees- én gif-drankje een
-   voorsprong van precies één nog kan dichten. **Zonder dagstemming** is
-   gelijkspel beslist (elke confrontatie staakt, 's nachts pakken de wolven
-   door), tenzij het dorp een tegenzet heeft: een heks met gif, of een levende
-   jager (de wolven weten niet wie dat is; pakken ze hem, dan schiet hij terug). **In de beslissende nacht blijven de
+   **mét dagstemming** staat níets tussentijds vast — elke stemming kan een wolf
+   treffen, want in het gedrang stemmen wolven zelfs op elkaar — dus daar eindigt
+   het spel pas als er geen burger meer over is (wolven winnen) of geen wolf
+   (burgers winnen). **Zonder dagstemming** is gelijkspel beslist (elke
+   confrontatie staakt, 's nachts pakken de wolven door), tenzij het dorp een
+   tegenzet heeft: een heks met gif, of een levende jager (de wolven weten niet
+   wie dat is; pakken ze hem, dan schiet hij terug). **In de beslissende nacht blijven de
    rollen van de doden geheim** (geen "Dex was de weerwolf" vóór de finale) en volgt
    eerst nog een **laatste gok-ronde** — waarin ook op doden gegokt mag worden, want
    de wolf kan al dood zijn.

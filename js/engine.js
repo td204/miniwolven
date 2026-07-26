@@ -353,16 +353,10 @@ const Engine = {
     const jagerLeeft = alive.some(p => p.role === 'jager');
 
     if (g.settings.dayVote) {
-      // Mét dagstemming kan het dorp bij gelijkspel nog altijd een wolf op de
-      // brandstapel krijgen — dus pas beslist als de wolven in de meerderheid
-      // zijn. En zelfs dan: heeft de heks nog genees- én gif-drankje, dan kan
-      // ze een voorsprong van precies één in één nacht dichten (slachtoffer
-      // redden + wolf vergiftigen). De jager kan hooguit ruilen en de
-      // meerderheid dus niet breken.
-      if (wolves > others) {
-        if (wolves - others === 1 && gif && heal) return null;
-        return 'wolven';
-      }
+      // Mét dagstemming staat níets tussentijds vast: elke stemming kan een
+      // wolf treffen — in het gedrang stemmen wolven zelfs op elkaar. Het
+      // spel eindigt dus pas als er geen burger meer over is (of geen wolf);
+      // die twee gevallen zijn hierboven al afgehandeld.
       return null;
     }
 

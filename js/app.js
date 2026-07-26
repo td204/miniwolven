@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 36;
+const APP_VERSION = 37;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
