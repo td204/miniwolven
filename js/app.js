@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 31;
+const APP_VERSION = 32;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -1081,7 +1081,21 @@ function speakNagging(first, variants) {
 
 function renderNight() {
   if (ui.stepStage === 'rest') return renderNightRest();
-  const step = Engine.nightStep(game);
+  // Het draaiboek is een momentopname van bij het startsein van de nacht;
+  // een rol kan intussen gestorven zijn (bijv. via een spelleider-correctie).
+  // Sla stappen van dode rollen alsnog over.
+  const actorAlive = {
+    cupido: () => game.players.some(p => p.alive && p.role === 'cupido'),
+    ziener: () => game.players.some(p => p.alive && p.role === 'ziener'),
+    heks: () => game.players.some(p => p.alive && p.role === 'heks'),
+    wolf: () => Engine.aliveWolves(game).length > 0,
+  };
+  let step = Engine.nightStep(game);
+  while (actorAlive[step] && !actorAlive[step]()) {
+    Engine.nextNightStep(game); saveGame();
+    ui.stepStage = null;
+    step = Engine.nightStep(game);
+  }
   if (step === 'sleep') return renderNightSleep();
   if (step === 'cupido') return renderNightCupido();
   if (step === 'ziener') return renderNightZiener();
