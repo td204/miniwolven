@@ -346,10 +346,12 @@ const Engine = {
     if (wolves === 0) return 'burgers';
     if (wolves >= alive.length - wolves) {
       // Gelijkspel is pas echt beslist als het dorp geen tegenzet meer heeft:
-      // een levende heks met gif kan 's nachts nog een wolf uitschakelen,
-      // buiten elke (stakende) stemming om.
+      // een levende heks met gif kan 's nachts een wolf uitschakelen, en een
+      // levende jager schiet terug als de wolven hem (onwetend) pakken — via
+      // ruil na ruil kan de laatste wolf alsnog vallen.
       const heksMetGif = alive.some(p => p.role === 'heks') && g.witch.poisonsLeft > 0;
-      if (wolves === alive.length - wolves && heksMetGif) return null;
+      const jagerLeeft = alive.some(p => p.role === 'jager');
+      if (wolves === alive.length - wolves && (heksMetGif || jagerLeeft)) return null;
       return 'wolven';
     }
     return null;

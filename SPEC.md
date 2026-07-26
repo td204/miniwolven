@@ -79,8 +79,11 @@ anders schakelen die drie de wolven te snel uit.
    zijn (heks-gif of jager!), wolven winnen zodra ze niet meer in de minderheid zijn
    (bij 1 wolf: nog maar 2 spelers over). Bij exact gelijke aantallen is het spel
    wiskundig beslist — stemmen staakt, en 's nachts pakken de wolven er één — met
-   één uitzondering: leeft de heks nog en heeft ze haar gif nog, dan speelt het
-   spel door, want zij kan buiten de stemming om nog een wolf uitschakelen. **In de beslissende nacht blijven de
+   twee uitzonderingen waarin het dorp nog een tegenzet heeft en het spel dus
+   doorspeelt: een levende heks die haar gif nog heeft (schakelt buiten de
+   stemming om een wolf uit), en een levende jager (de wolven weten niet wie dat
+   is; pakken ze hem, dan schiet hij terug — en via ruil na ruil kan de laatste
+   wolf alsnog vallen). **In de beslissende nacht blijven de
    rollen van de doden geheim** (geen "Dex was de weerwolf" vóór de finale) en volgt
    eerst nog een **laatste gok-ronde** — waarin ook op doden gegokt mag worden, want
    de wolf kan al dood zijn.
