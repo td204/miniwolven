@@ -19,7 +19,7 @@ const Store = {
 const KEYS = { game: 'mw_game', stats: 'mw_stats', groups: 'mw_groups', prefs: 'mw_prefs' };
 
 /** Zichtbaar op het startscherm; gelijk houden met de cache-versie in sw.js. */
-const APP_VERSION = 30;
+const APP_VERSION = 31;
 
 /** Geluidseffecten (gehuil, piepjes) staan standaard uit; aan te zetten in ⚙️. */
 function soundOn() {
@@ -522,6 +522,7 @@ const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 
 let activeTimers = [];
+let restoreScrollY = null; // in-place herteken? dan scrollpositie behouden
 function after(ms, fn) { activeTimers.push(setTimeout(fn, ms)); }
 function every(ms, fn) { activeTimers.push(setInterval(fn, ms)); }
 function clearTimers() { activeTimers.forEach(t => { clearTimeout(t); clearInterval(t); }); activeTimers = []; }
@@ -534,6 +535,7 @@ function screen(html, cls = '') {
   app().className = cls;
   app().innerHTML = html;
   window.scrollTo(0, 0);
+  if (restoreScrollY != null) { window.scrollTo(0, restoreScrollY); restoreScrollY = null; }
   Ambient.set(ambientScene());
 }
 
@@ -776,6 +778,7 @@ function startSetup(names) {
 }
 
 function renderSetupPlayers() {
+  if (currentView === 'players') restoreScrollY = window.scrollY;
   currentView = 'players';
   const known = knownPlayers();
   const n = setup.names.length;
@@ -889,6 +892,7 @@ function showAvatarPicker(i) {
 /* ---------- setup: rollen & opties ---------- */
 
 function renderSetupRoles() {
+  if (currentView === 'roles') restoreScrollY = window.scrollY;
   currentView = 'roles';
   const n = setup.names.length;
   const auto = Engine.autoComposition(n);
@@ -1226,6 +1230,8 @@ function renderNightCupido() {
   }
   if (ui.stepStage === 'pick') {
     const sel = ui.cupidoSel;
+    if (ui.cupidoRendered) restoreScrollY = window.scrollY;
+    ui.cupidoRendered = true;
     screen(`
       ${header('Cupido', true)}
       <div class="stack night">
@@ -1409,6 +1415,21 @@ function renderNightWolf() {
 
 function renderNightHeks() {
   const heks = game.players.find(p => p.alive && p.role === 'heks');
+  // Spelleider zonder drankjes: alleen een geheugensteuntje, geen keuzes.
+  if (game.settings.spelleider && game.witch.healsLeft <= 0 && game.witch.poisonsLeft <= 0) {
+    screen(`
+      ${header(`Nacht ${game.round} · heks`, true)}
+      <div class="center-stage night">
+        <div class="big-emoji">🧪</div>
+        <h2>De heks heeft geen drankjes meer</h2>
+        <p class="muted">Wek haar heel even voor de vorm (dan verklapt het overslaan niets aan het dorp) en laat haar weer gaan slapen.</p>
+        <button class="btn primary big" id="done">Verder · ogen dicht 😴</button>
+      </div>
+    `, 'theme-night');
+    bindMenu();
+    $('#done').addEventListener('click', nightNext);
+    return;
+  }
   if (!ui.stepStage) ui.stepStage = 'wake';
   const appMode = game.settings.deathMode === 'app';
   const victim = appMode && game.night.wolfTarget != null ? Engine.player(game, game.night.wolfTarget) : null;
@@ -1880,6 +1901,8 @@ function renderVoting() {
 function renderVoteTally() {
   const alive = Engine.alive(game);
   if (!ui.tally) ui.tally = {};
+  if (ui.tallyRendered) restoreScrollY = window.scrollY;
+  ui.tallyRendered = true;
   const total = Object.values(ui.tally).reduce((a, b) => a + b, 0);
   screen(`
     ${header('Stemming turven 🔥', true)}

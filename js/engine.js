@@ -192,7 +192,10 @@ const Engine = {
     if (g.players.some(p => p.alive && p.role === 'ziener')) steps.push('ziener');
     steps.push('wolf');
     const heks = g.players.find(p => p.alive && p.role === 'heks');
-    if (heks && (g.witch.healsLeft > 0 || g.witch.poisonsLeft > 0)) steps.push('heks');
+    // Spelleider-modus: de heks-beurt blijft óók zonder drankjes in het
+    // draaiboek, zodat de spelleider het overzicht houdt (en het overslaan
+    // niet verklapt dat de drankjes op zijn).
+    if (heks && (g.witch.healsLeft > 0 || g.witch.poisonsLeft > 0 || g.settings.spelleider)) steps.push('heks');
     steps.push('wake');
     g.night = {
       steps, stepIndex: 0,
